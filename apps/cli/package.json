@@ -1,0 +1,25 @@
+{
+  "name": "gits",
+  "version": "0.1.0",
+  "private": true,
+  "bin": {
+    "gits": "./dist/index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsgo -p tsconfig.build.json",
+    "dev": "node --import=tsx src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsgo -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@bybrave/proper-lockfile2": "catalog:",
+    "cron-parser": "catalog:",
+    "incur": "catalog:",
+    "jsonc-parser": "catalog:",
+    "listr2": "catalog:",
+    "pino": "catalog:",
+    "plist": "catalog:",
+    "table": "catalog:"
+  }
+}
