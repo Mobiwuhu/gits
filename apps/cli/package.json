@@ -7,19 +7,17 @@
   },
   "type": "module",
   "scripts": {
-    "build": "tsgo -p tsconfig.build.json",
-    "dev": "node --import=tsx src/index.ts",
+    "build": "tsdown --config-loader tsx",
+    "build:watch": "tsdown --config-loader tsx --watch",
+    "dev": "TSX_TSCONFIG_PATH=tsconfig.json node --import=tsx src/index.ts",
     "start": "node dist/index.js",
-    "typecheck": "tsgo -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@bybrave/proper-lockfile2": "catalog:",
-    "cron-parser": "catalog:",
+    "@gits/core": "workspace:*",
+    "@wendellhu/redi": "catalog:",
     "incur": "catalog:",
-    "jsonc-parser": "catalog:",
     "listr2": "catalog:",
-    "pino": "catalog:",
-    "plist": "catalog:",
     "table": "catalog:"
   }
 }

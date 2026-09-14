@@ -1,0 +1,6 @@
+export { FetchTaskCommand } from './FetchTaskCommand'
+export { InitializeTaskCommand } from './InitializeTaskCommand'
+export { InstallTaskCommand } from './InstallTaskCommand'
+export { PushTaskCommand } from './PushTaskCommand'
+export { StatusTaskCommand } from './StatusTaskCommand'
+export { SwitchTaskCommand } from './SwitchTaskCommand'

@@ -1,0 +1,26 @@
+{
+  "name": "@gits/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "publishConfig": {
+    "directory": "dist",
+    "linkDirectory": true
+  },
+  "scripts": {
+    "build": "tsdown --config-loader tsx",
+    "build:watch": "tsdown --config-loader tsx --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@bybrave/proper-lockfile2": "catalog:",
+    "@scaffdog/core": "catalog:",
+    "@scaffdog/engine": "catalog:",
+    "@wendellhu/redi": "catalog:",
+    "cron-parser": "catalog:",
+    "jsonc-parser": "catalog:",
+    "pino": "catalog:",
+    "plist": "catalog:"
+  }
+}

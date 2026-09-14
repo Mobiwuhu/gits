@@ -4,7 +4,7 @@
 
 `task.config.jsonc` 只保存稳定意图：仓库身份、任务分支、首次创建分支时使用的远程基线，以及可选的工作区目录范围。当前分支、工作区改动、upstream、实际 sparse-checkout 和提交状态始终以原生 Git 为事实来源。
 
-CLI 的实现全部位于 `apps/cli`，使用 Incur 的文件路由能力。命令由 `apps/cli/src/presentation/cli/routes/` 下的文件路由提供。
+仓库采用私有 `packages/core` + `apps/cli` 的模块化单体结构。Core 保存业务 Service，CLI 只负责 Incur 参数、交互和输出；全部 Command 通过 ReDI 构造器注入并显式注册，不扫描文件路由。
 
 ## 环境要求
 
@@ -25,16 +25,35 @@ corepack enable
 ```sh
 pnpm install
 pnpm build
-node apps/cli/dist/index.js --help
+pnpm start -- --help
 ```
 
-开发时可以直接运行 TypeScript 源码，无需先构建：
+`pnpm build` 使用 tsdown/Rolldown 将 Core 和 CLI 构建为 Node.js ESM；`tsc` 只负责 `--noEmit` 类型检查，不参与生成运行产物。
+
+完成首次构建后，可以直接运行 CLI 的 TypeScript 源码：
 
 ```sh
 pnpm dev -- --help
 ```
 
+Core 的 workspace 链接指向构建目录。持续修改 Core 或希望全局链接实时跟随构建结果时，另开一个终端运行：
+
+```sh
+pnpm build:watch
+```
+
 打包或安装该 CLI 后，正式二进制名称为 `gits`。
+
+### 全局链接
+
+在仓库根目录执行：
+
+```sh
+pnpm link:global
+gits --help
+```
+
+`link:global` 会先构建整个 workspace，再把 `apps/cli` 注册为全局 `gits` 命令。Core 通过 `publishConfig.directory` 和 `linkDirectory` 链接到 `packages/core/dist`，所以全局命令直接使用编译后的 JavaScript，不需要全局安装 `tsx`、设置 `NODE_OPTIONS` 或维护 shell function。
 
 ## 快速试用
 
@@ -42,7 +61,7 @@ pnpm dev -- --help
 
 ```sh
 mkdir -p /tmp/gits-demo
-node apps/cli/dist/index.js -C /tmp/gits-demo init
+pnpm start -- -C /tmp/gits-demo init
 ```
 
 该目录会得到：
@@ -52,11 +71,13 @@ gits-demo/
 ├── task.config.jsonc
 ├── AGENTS.md
 ├── docs/
+│   └── AGENTS.md
 ├── scripts/
+│   └── AGENTS.md
 └── repos/
 ```
 
-生成的 `task.config.jsonc` 会把当前支持的每个仓库参数都显式列出并逐项注释；只需替换占位符和按需修改显式值，不需要猜测隐藏默认值。编辑后类似：
+这组文件由 Scaffdog Markdown 模板 [`packages/core/templates/taskScaffold.md`](packages/core/templates/taskScaffold.md) 生成；开发者可以直接编辑模板来维护新任务的默认内容。三份 `AGENTS.md` 初始为空，重复执行 `init` 只补齐缺失文件，不覆盖已经填写的内容。生成的 `task.config.jsonc` 会把当前支持的每个仓库参数都显式列出并逐项注释；只需替换占位符和按需修改显式值，不需要猜测隐藏默认值。编辑后类似：
 
 ```jsonc
 {
@@ -84,19 +105,19 @@ gits-demo/
 然后准备并查看仓库：
 
 ```sh
-node apps/cli/dist/index.js -C /tmp/gits-demo install
-node apps/cli/dist/index.js -C /tmp/gits-demo status
+pnpm start -- -C /tmp/gits-demo install
+pnpm start -- -C /tmp/gits-demo status
 ```
 
 若已有一个任务模板目录，可直接导入其配置和脚本：
 
 ```sh
 mkdir -p /tmp/gits-demo-copy
-node apps/cli/dist/index.js -C /tmp/gits-demo-copy init \
+pnpm start -- -C /tmp/gits-demo-copy init \
   --scan /Users/bytedance/Desktop/tasks/task-save-btn-state
 ```
 
-`--scan` 只读取源目录根的 `task.config.jsonc`，并递归复制其 `scripts/` 内容；不会读取或复制 `repos/`、`docs/`、`AGENTS.md`，也不会修改源目录。
+`--scan` 仍只从指定的源任务目录导入，不递归寻找任务配置，也不访问 `repos/`。它会原样复制根目录的 `task.config.jsonc`、递归复制 `scripts/`，并复制 Codex、Claude、Gemini、Grok、Cursor 与 Pi 的项目级配置：`.agents/`、`.codex/`、`.claude/`、`.gemini/`、`.grok/`、`.cursor/`、`.pi/`，以及根目录的 `AGENTS.md`、`CLAUDE.md`、`GEMINI.md`、`.cursorrules`、`.cursorignore`、`.cursorindexingignore`。`docs/` 中只有 `docs/AGENTS.md` 会被复制，其他文档保持排除；源目录不会被修改。
 
 ### 只检出仓库中的部分目录
 
@@ -185,7 +206,7 @@ gits uninstall --force --yes
 
 CLI 只删除自己拥有的运行数据和原生调度投影，不遍历或删除任务工作区，也不删除 pnpm/npm/Homebrew 管理的可执行文件或全局链接；包本身仍应由原安装工具移除。
 
-机器级持久化路径统一登记在 `apps/cli/src/infrastructure/persistence/gits-persistence-registry.ts`，包括默认数据根、根目录内的受管目录/文件，以及必须投影到操作系统目录的调度文件。新增功能不能自行硬编码新的机器级目录；先登记后复用，`uninstall --dry-run` 和真正清理会自动获得同一份清单。
+机器级持久化路径统一登记在 `packages/core/src/service/gitsPersistenceRegistry.ts`，包括默认数据根、根目录内的受管目录/文件，以及必须投影到操作系统目录的调度文件。新增功能不能自行硬编码新的机器级目录；先登记后复用，`uninstall --dry-run` 和真正清理会自动获得同一份清单。
 
 ## Repo Mirrors
 
@@ -270,8 +291,8 @@ gits repo-mirrors remove api --purge --yes               # 不进 trash，永久
 
 - `init` 可重复执行，只补齐缺失的脚手架，不覆盖已有内容。
 - 配置中的 `<...>` 占位值会阻止 `install`、`status`、`fetch`、`switch` 和 `push` 执行。
-- `init --scan <source-task-dir>` 只读取源目录根的 `task.config.jsonc`，将原始 JSONC 内容复制到目标任务目录，并递归复制源目录的 `scripts/`。它不递归寻找配置文件，不访问远程，也不会读取或修改源目录的 Git 仓库。
-- 导入仅会覆盖目标目录中的默认占位配置和空 `scripts/` 目录；已有真实配置或非空脚本目录会直接失败，避免覆盖用户内容。
+- `init --scan <source-task-dir>` 只读取源目录根的 `task.config.jsonc`，将原始 JSONC 内容复制到目标任务目录，并导入 `scripts/`、受支持的项目级 Agent 配置和 `docs/AGENTS.md`。它不递归寻找任务配置文件，不访问远程，也不会读取或修改源目录的 Git 仓库。
+- 导入仅会覆盖目标目录中的默认占位配置、空的 `AGENTS.md` 和只含默认空 `AGENTS.md` 的 `scripts/`；已有真实配置、说明或脚本会直接失败，避免覆盖用户内容。
 - `install` 先在工具临时目录 clone，局部检出与分支准备完成后才原子移动到目标目录；对已有仓库只会安全对齐 `checkout`，不会借机修改其他 Git 状态。
 - `install` 会透明尝试匹配健康 repo mirror；配置、镜像或锁异常时无损回退普通 clone。
 - 默认 mirror 安装保留受保护的 alternates 依赖；仅 `task.config.jsonc` 中显式 `dissociate: true` 的仓库会复制对象并断开依赖。
@@ -285,11 +306,26 @@ gits repo-mirrors remove api --purge --yes               # 不进 trash，永久
 
 ```text
 apps/cli/src/
-├── domain/          # 领域模型、状态和 URL 身份规则
-├── application/     # 用例编排、共享任务规则和端口接口
-├── infrastructure/  # Git、JSONC、文件系统和并发实现
-└── presentation/    # Incur 路由、终端输出、JSON/CTA 适配
+├── contract/        # CLI 类型、常量和可注入接口
+├── service/         # CLI 启动、交互、错误、输出与进度 Service
+├── module/          # Task、RepoMirror、Uninstall Command 类
+├── bootstrap/       # 唯一 Injector 组合根
+├── dependencies.ts  # CLI 默认绑定
+└── index.ts         # 进程入口
+
+packages/core/src/
+├── contract/        # 跨包类型和所有注入接口/Identifier
+├── service/         # Git、文件、进程、并发等基础 Service
+├── module/          # Task、RepoMirror、Uninstall 业务 Service
+├── dependencies.ts  # Core 默认绑定
+└── index.ts         # Core 对 CLI 的公开面
 ```
+
+约束是“依赖接口、注册实现”：构造器只注入 `I...Service` Identifier，具体实现只在 `dependencies.ts` 中通过 `{ useClass }` 绑定。一次 CLI 调用只创建一个 Injector。详细规则见 [`docs/class-based-di-refactoring-plan.md`](docs/class-based-di-refactoring-plan.md)。
+
+TypeScript 使用 Bundler 模块解析，源码相对导入不写文件扩展名，例如 `import './Foo'`。tsdown 会解析 `.ts` 模块并生成可由 Node.js 直接执行的 ESM，因此源码中不需要伪写 `.js` 后缀，仓库也不包含手写 JavaScript 源文件。
+
+Core 包采用 pnpm 的 `publishConfig.directory` 方式，不使用自定义 condition 或 `--conditions`。顶层 `exports` 仍指向 `src/index.ts`，供源码工具识别；tsdown 会在 `dist` 中生成单文件 ESM、声明文件和生产清单，入口指向 `index.js` 和 `index.d.ts`。`linkDirectory: true` 使 workspace 和全局 CLI 都通过构建后的 Core 运行，`pnpm pack/publish` 也只会处理 `dist` 中的生产文件。
 
 ## 校验
 
@@ -297,4 +333,4 @@ apps/cli/src/
 pnpm check
 ```
 
-该命令会执行格式检查、lint、类型检查、测试和构建。CLI 集成测试使用隔离的本地 bare Git remote，覆盖脚手架、`-C`、模板导入、配置占位符、安装、状态、push 和 `switch --stash`；并发测试覆盖 Listr2 展示开启时的并发上限、稳定结果顺序、独立失败和中断语义。
+该命令会执行格式检查、lint、类型检查、架构依赖门禁、测试和构建。CLI 集成测试使用隔离的本地 bare Git remote，覆盖脚手架、`-C`、模板导入、配置占位符、安装、状态、push 和 `switch --stash`；并发测试覆盖 Listr2 展示开启时的并发上限、稳定结果顺序、独立失败和中断语义。

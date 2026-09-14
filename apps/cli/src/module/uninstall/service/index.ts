@@ -1,0 +1,1 @@
+export { UninstallCommand } from './UninstallCommand'

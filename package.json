@@ -5,22 +5,26 @@
   "type": "module",
   "scripts": {
     "build": "pnpm --recursive --if-present run build",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "build:watch": "pnpm --filter @gits/core build && pnpm --recursive --parallel --if-present run build:watch",
+    "check": "pnpm format:check && pnpm lint && pnpm arch:check && pnpm build && pnpm typecheck && pnpm test",
+    "arch:check": "node --import=tsx scripts/checkArchitecture.ts",
     "dev": "pnpm --filter gits dev",
     "format": "oxfmt . --write",
     "format:check": "oxfmt . --check",
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
+    "link:global": "pnpm build && pnpm --dir apps/cli link --global",
     "start": "pnpm --filter gits start",
-    "test": "node --import=tsx --test apps/cli/src/presentation/cli/gits.integration.test.ts apps/cli/src/presentation/cli/repo-mirrors.integration.test.ts apps/cli/src/infrastructure/concurrency/concurrent-runner.test.ts apps/cli/src/infrastructure/config/jsonc-task-configuration-store.test.ts apps/cli/src/infrastructure/filesystem/node-task-template-importer.test.ts apps/cli/src/infrastructure/logging/pino-repo-mirror-logger.test.ts apps/cli/src/infrastructure/persistence/node-gits-persistence.test.ts apps/cli/src/infrastructure/repo-mirrors/jsonc-repo-mirror-store.test.ts apps/cli/src/infrastructure/scheduler/native-repo-mirror-scheduler.test.ts apps/cli/src/domain/git/remote-url.test.ts",
+    "test": "TSX_TSCONFIG_PATH=tsconfig.base.json node --import=tsx --test apps/cli/src/service/CliApplication.integration.test.ts apps/cli/src/module/repoMirror/service/RepoMirrorCommand.integration.test.ts packages/core/src/service/ConcurrencyService.test.ts packages/core/src/service/gitUrl.test.ts packages/core/src/module/task/service/TaskConfigurationService.test.ts packages/core/src/module/task/service/TaskTemplateImportService.test.ts packages/core/src/module/repoMirror/service/RepoMirrorLoggerService.test.ts packages/core/src/module/repoMirror/service/RepoMirrorSchedulerService.test.ts packages/core/src/module/repoMirror/service/RepoMirrorStoreService.test.ts packages/core/src/module/uninstall/service/GitsPersistenceService.test.ts",
     "typecheck": "pnpm --recursive --if-present run typecheck"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "@typescript/native-preview": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
-    "tsx": "catalog:"
+    "tsdown": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
   },
   "engines": {
     "node": ">=22.17.1",

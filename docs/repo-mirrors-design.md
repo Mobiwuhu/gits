@@ -23,7 +23,7 @@ gits repo-mirrors ...
 - 为了让操作系统自动发现任务，生成的 plist/unit 必须放入操作系统规定的目录；它们只是由 `~/.gits/config.jsonc` 重建出来的投影，不是数据源。
 - 默认给新 mirror 生成按“本机 installation id + 仓库 identity”稳定错峰的调度；用户也可以指定便携的五段 cron 或关闭调度。
 - 默认 `list` 直接展示 bare mirror 的本机绝对路径；`--wide` 再展示完整 URL、调度表达式、下一次计划执行时间以及实际生成的 fetch 命令。
-- 批量 add/fetch/set/remove 沿用项目已有的 `runConcurrently` 与 `-j` 产品语义：默认最多 4 个、结果顺序稳定、单项失败不阻止其他项、存在任何失败时退出码为 1；独立的原生调度进程还要经过机器级跨进程并发槽。
+- 批量 add/fetch/set/remove 通过 `IConcurrencyService` 保持既有 `-j` 产品语义：默认最多 4 个、结果顺序稳定、单项失败不阻止其他项、存在任何失败时退出码为 1；独立的原生调度进程还要经过机器级跨进程并发槽。
 - 通用能力优先采用开源库：`cron-parser` 处理 cron，`@bybrave/proper-lockfile2` 处理跨进程锁和并发槽，`pino` 处理结构化日志，`table` 处理 CLI 表格的 Unicode/ANSI 宽度与换行，`plist` 生成 macOS property list；已有实现已经精确满足契约时不为了替换而增加依赖。
 - JS 生态没有一个足够成熟、同时完整覆盖 macOS 定时 LaunchAgent 与 Linux systemd user timer 的通用库，因此只有这一小块保留两个很薄的自有 adapter。
 - mirror 设置完成后，现有 `gits install` 自动匹配同一远端的健康 mirror，并在持有 mirror 使用锁期间使用 `git clone --reference-if-able` 加速。默认保留受登记和保护的 alternates 依赖；只有任务仓库显式配置 `dissociate: true` 才追加 `--dissociate`。配置、锁或 mirror 异常时无损退回普通 clone，无需额外增加 `ref clone` 命令。
@@ -102,7 +102,7 @@ gits repo-mirrors logs frontend        # 查看结构化运行日志
 | [`pino-roll`](https://github.com/mcollina/pino-roll)                                                          | 单进程日志文件轮转                                          | 调研后不采用。其默认 retention 只统计当前进程创建的文件，多短进程共享同一文件还会与 native stdout writer 竞争；结构化日志用唯一 run 文件，应用依赖加载前的 emergency log 则由稳定 runner 以 Node `fs` 做 1 MiB 定长写入和两个备份，边界更明确 |
 | [`table`](https://github.com/gajus/table)                                                                     | 把二维数据渲染成文本表格，支持全角字符、ANSI、列宽和换行    | 建议采用。返回字符串，能直接接入当前 presenter；使用无边框样式保持现有紧凑输出，由薄 facade 固定 TTY/pipe、长字段与 snapshot 语义                                                                                                             |
 | [`listr2`](https://github.com/listr2/listr2)                                                                  | 并行任务列表、每任务输出流、TTY 重绘和非 TTY renderer       | 建议采用。TTY 下每个仓库使用固定任务行并接管对应 Git stdout/stderr；agent、JSON 和非 TTY 模式禁用动态 renderer，最终领域结果仍交给 Incur                                                                                                      |
-| [`cli-table3`](https://github.com/cli-table/cli-table3)                                                       | 轻量 CLI 表格、ANSI-aware 截断、对齐和自定义边框            | 可用备选，但主要 API 仍是 CommonJS 风格的可变 Table；本项目是严格 NodeNext ESM，`table` 的具名函数和现有纯 formatter 更贴合                                                                                                                   |
+| [`cli-table3`](https://github.com/cli-table/cli-table3)                                                       | 轻量 CLI 表格、ANSI-aware 截断、对齐和自定义边框            | 可用备选，但主要 API 仍是 CommonJS 风格的可变 Table；本项目由 tsdown 生成 Node ESM，`table` 的具名函数和现有纯 formatter 更贴合                                                                                                               |
 | [`@oclif/table`](https://github.com/oclif/table)                                                              | TypeScript-first 表格、自动终端宽度、Ink/CI renderer        | 功能完整但 v1 会引入 Ink、React 等较重运行时，而本项目使用 Incur 且只需要确定性的字符串 renderer，暂不采用                                                                                                                                    |
 | [`plist`](https://github.com/TooTallNate/plist.js)                                                            | 从 JavaScript 对象生成 Apple XML property list              | 建议采用。v5 是带内置类型的 TypeScript 实现；用它负责 XML 编码和转义，再用 macOS 自带 `plutil -lint` 做平台校验，不手拼 plist XML                                                                                                             |
 | [`unitup`](https://github.com/litepacks/unitup)                                                               | 可编程的跨平台 service manager，并公开 JS API               | 可参考 service adapter 结构，但其定时器文档明确是 systemd/Linux 能力，不能解决 macOS 定时任务                                                                                                                                                 |
@@ -115,22 +115,22 @@ gits repo-mirrors logs frontend        # 查看结构化运行日志
 v1 建议采用：
 
 ```text
-cron-parser     cron 校验与 next-run 计算
-runConcurrently 复用项目已有的单进程受限并发
-listr2          TTY 并行任务状态和每任务 Git 输出归属
+cron-parser       cron 校验与 next-run 计算
+ConcurrencyService 单进程受限并发
+listr2            TTY 并行任务状态和每任务 Git 输出归属
 proper-lockfile2 跨 CLI/调度进程互斥及机器级并发槽
 pino            结构化日志
 table           人类可读 CLI 表格
 plist           macOS LaunchAgent plist 序列化
 ```
 
-项目仍保留薄的 port/facade，以固定自己的产品契约：
+项目用窄 Service 接口固定自己的产品契约：
 
-- `runConcurrently` 直接复用现有结果类型、worker 调度、默认并发数、进度回调和中断后的 `not-run` 表达；
-- `RepoMirrorLock` 固定 config、mirror 和全局 slot 三类锁、等待策略和领域错误，原子性、heartbeat、stale、retry 和原子 reclaim 交给 `@bybrave/proper-lockfile2`；
-- `RepoMirrorLogger` 固定字段、脱敏、每次运行的唯一文件、大小/数量 retention 和 flush 生命周期，JSON 编码交给 `pino`；
-- `CliTableRenderer` 固定无边框样式、列优先级、TTY/pipe 宽度和长字段策略，把可见宽度、ANSI 与全角字符处理交给 `table`；
-- `LaunchdPlistRenderer` 把领域 job 映射为 plist 对象，XML 构建和转义交给 `plist`，平台合法性仍以 `plutil -lint` 为准；
+- `IConcurrencyService` 固定结果类型、worker 调度、默认并发数、进度回调和中断后的 `not-run` 表达；
+- `IRepoMirrorLockService` 固定 config、mirror 和全局 slot 三类锁、等待策略和业务错误，原子性、heartbeat、stale、retry 和原子 reclaim 交给 `@bybrave/proper-lockfile2`；
+- `IRepoMirrorLoggerService` 固定字段、脱敏、每次运行的唯一文件、大小/数量 retention 和 flush 生命周期，JSON 编码交给 `pino`；
+- `CliOutputService` 固定 stdout/stderr 行为，`formatCliTable` 把可见宽度、ANSI 与全角字符处理交给 `table`；
+- `renderLaunchdPlist` 把 scheduled invocation 映射为 plist 对象，XML 构建和转义交给 `plist`，平台合法性仍以 `plutil -lint` 为准；
 - portable cron validator 只限制本项目承诺的五段语法，日期取值和 next-run 交给 `cron-parser`。
 
 只有 cron 到 plist/unit 的编译和原生任务注册没有合适的统一库，需要自有 launchd/systemd adapter。这里也只包装官方命令和确定性模板，不扩展成通用 scheduler framework。
@@ -331,7 +331,7 @@ JSON 不复用现有面向任务仓库的 `repos` 字段：
 
 ### 6.3 批处理与退出语义
 
-所有接受多个目标的命令直接复用现有 `runConcurrently` 契约：
+所有接受多个目标的命令统一调用 `IConcurrencyService`：
 
 - 默认并发数 `min(4, 目标数)`，可用 `-j` 调整；
 - 输出顺序按用户输入或配置顺序稳定，不按完成顺序跳动；
@@ -437,7 +437,7 @@ JSON 不复用现有面向任务仓库的 `repos` 字段：
 
 ### 7.2 持久化注册表与卸载
 
-所有机器级落盘位置统一声明在 `infrastructure/persistence/gits-persistence-registry.ts`。`resolveGitsPaths`、目录初始化、stable runner、launchd/systemd projection 和 uninstaller 都消费同一注册表，不能各自重复硬编码路径。新增功能必须先登记持久化位置再写盘。注册表分为四类：
+所有机器级落盘位置统一声明在 `packages/core/src/service/gitsPersistenceRegistry.ts`。`GitsPathService`、目录初始化、stable runner、launchd/systemd projection 和 `GitsPersistenceService` 都消费同一注册表，不能各自重复硬编码路径。新增功能必须先登记持久化位置再写盘。注册表分为四类：
 
 - `gitsPersistenceRootRegistry`：默认独占数据根名称；
 - `gitsHomePersistenceRegistry`：`GITS_HOME` 下的 config、mirrors、state、logs、locks、tmp、trash 和 bin；
@@ -701,11 +701,11 @@ logger 用 Pino 的 in-process destination 写入每次运行唯一的 `logs/rep
 
 ### 9.3 Lock
 
-不依赖外部 `flock`，也不自研 lease 算法。`RepoMirrorLock` port 由 `@bybrave/proper-lockfile2` adapter 实现，复用其原子 `mkdir`、mtime heartbeat、原子 stale reclaim、retry 和 compromised-lock 检测：
+不依赖外部 `flock`，也不自研 lease 算法。`RepoMirrorLockService` 通过 `@bybrave/proper-lockfile2` 实现 `IRepoMirrorLockService`，复用其原子 `mkdir`、mtime heartbeat、原子 stale reclaim、retry 和 compromised-lock 检测：
 
 - config lock 使用预先创建的稳定目标 `~/.gits/locks/config`，保护 definition 的短时读改写；不能直接锁首次启动时尚不存在且默认会被 realpath 的 `config.jsonc`；
 - per-mirror lock 位于 `~/.gits/locks/repo-mirrors/<name>`，覆盖完整 add、set、fetch、reference clone、remove、repair 和 maintenance；install 短时间获取不到时直接退回普通 clone，资源变更则等待或清楚报错；
-- machine slots 位于 `~/.gits/locks/fetch-slots/0..N-1`，所有 CLI 进程和 native job 都要占用一个 slot；`p-map`/`runConcurrently` 之类的进程内工具不能替代它；
+- machine slots 位于 `~/.gits/locks/fetch-slots/0..N-1`，所有 CLI 进程和 native job 都要占用一个 slot；`p-map`/`ConcurrencyService` 之类的进程内工具不能替代它；
 - 上述 lock targets 都是在初始化时以 `0600` 创建的稳定空文件，库创建的 `.lock` 目录才是临时所有权标记；remove 不删除对应 target，避免旧进程与同名重建资源锁在不同 inode/path 上；
 - 固定锁顺序为 fetch slot -> per-mirror -> config；config lock 下绝不等待 per-mirror lock，clone/fetch/repack/fsck 和原生调度命令不持有 config lock，从结构上避免环形等待；
 - 所有调用点使用库返回的 release function 并放入 `finally`；
@@ -856,78 +856,57 @@ v1 的加速范围仅是 Git object database，原因来自两类数据的存储
 
 ## 11. 代码结构
 
-现有项目已经采用 domain / application / infrastructure / presentation 分层，并有 `runConcurrently`、Git runner、JSONC store 和 Incur file routes。新能力延续现有结构：
+项目已经迁移为“私有 Core 包 + CLI 应用”的类式模块结构。Core 不依赖 Incur，CLI 只负责命令装配、输入输出和进程退出；所有可注入 Service 都通过 `contract/interface` 中的接口 Identifier 依赖，具体类只在 `dependencies.ts` 绑定：
 
 ```text
+packages/core/src/
+├── contract/
+│   ├── interface/             # IRepoMirror*Service 等接口与 ReDI Identifier
+│   └── types/                 # repoMirror.ts 等稳定数据契约
+├── service/                   # Git、文件系统、进程、并发、路径等基础 Service
+├── module/
+│   ├── repoMirror/service/    # 八个命令 Service 及模块内协作 Service
+│   ├── task/service/
+│   └── uninstall/service/
+├── dependencies.ts            # [IService, { useClass: Service }]
+└── index.ts
+
 apps/cli/src/
-├── domain/repo-mirror/
-│   ├── model.ts
-│   ├── schedule.ts
-│   └── errors.ts
-├── application/ports/
-│   ├── gits-persistence.ts
-│   ├── repo-mirror-store.ts
-│   ├── repo-mirror-resolver.ts
-│   ├── repo-mirror-gateway.ts
-│   ├── repo-mirror-scheduler.ts
-│   ├── repo-mirror-lock.ts
-│   ├── repo-mirror-logger.ts
-│   └── repo-mirror-dependencies.ts
-├── application/repo-mirrors/
-│   ├── repo-mirror-manager.ts
-│   ├── repo-mirror-identity.ts
-│   └── configured-repo-mirror-resolver.ts
-├── application/use-cases/
-│   └── install-task.ts
-├── application/uninstall/
-│   └── gits-uninstaller.ts
-├── infrastructure/persistence/
-│   ├── gits-persistence-registry.ts
-│   └── node-gits-persistence.ts
-├── infrastructure/repo-mirrors/
-│   ├── jsonc-repo-mirror-store.ts
-│   ├── git-repo-mirror-gateway.ts
-│   ├── proper-lockfile2-repo-mirror-lock.ts
-│   ├── repo-mirror-dependency-registry.ts
-│   └── gits-paths.ts
-├── infrastructure/logging/
-│   └── pino-repo-mirror-logger.ts
-├── infrastructure/scheduler/
-│   ├── portable-cron.ts
-│   ├── stable-runner-installer.ts
-│   ├── launchd-plist-renderer.ts
-│   ├── systemd-unit-renderer.ts
-│   └── native-repo-mirror-scheduler.ts
-└── presentation/cli/routes/repo-mirrors/
-    ├── index.ts
-    ├── list.ts
-    ├── path.ts
-    ├── add.ts
-    ├── set.ts
-    ├── remove.ts
-    ├── fetch.ts
-    ├── logs.ts
-    └── doctor.ts
+├── contract/
+│   ├── interface/             # CLI 专属接口与 Identifier
+│   ├── types/
+│   └── constants/
+├── service/                   # CliApplication、输出、确认、进度、运行时
+├── module/
+│   ├── repoMirror/service/    # Incur RepoMirror 命令类
+│   ├── task/service/          # Incur Task 命令类
+│   └── uninstall/service/
+├── bootstrap/container.ts     # 唯一 Injector 组合根
+├── dependencies.ts
+└── index.ts                   # 进程入口
 ```
 
-核心 port 建议保持很窄：
+核心接口保持很窄，并同时声明显式 ReDI Identifier：
 
 ```ts
-interface RepoMirrorScheduler {
-  apply(definition: RepoMirrorDefinition): Promise<SchedulerObservation>
-  inspect(definition: RepoMirrorDefinition): Promise<SchedulerObservation>
-  invocation(name: string): ScheduledInvocation
-  remove(name: string): Promise<SchedulerObservation>
+export interface IRepoMirrorSchedulerService {
+  apply(definition: RepoMirrorDefinition): Promise<RepoMirrorSchedulerObservation>
+  inspect(definition: RepoMirrorDefinition): Promise<RepoMirrorSchedulerObservation>
+  invocation(name: string): RepoMirrorScheduledInvocation
+  remove(name: string): Promise<RepoMirrorSchedulerObservation>
 }
+
+export const IRepoMirrorSchedulerService: IdentifierDecorator<IRepoMirrorSchedulerService> =
+  createIdentifier<IRepoMirrorSchedulerService>('core.repoMirrorSchedulerService')
 ```
 
-cron 到 scheduled job 的编译、next-run 计算和 fetch command 生成属于平台无关 application/domain 层。adapter 只负责渲染投影、调用原生命令和返回观测值。
+cron 到 scheduled job 的编译、next-run 计算和 fetch command 生成留在 repoMirror 模块；操作系统命令与文件系统能力分别通过 `IProcessService` 和 `IFileSystemService` 注入。调用方只依赖 `IRepoMirrorSchedulerService`，不依赖具体实现类。
 
-在 `presentation/cli/presenters/cli-table.ts` 增加共享 `CliTableRenderer`，现有 `command-output.ts` 和 repo-mirrors presenter 都只提交 headers、cells 与列优先级，不再各自计算字符宽度或拼空格。facade 返回字符串而不直接写 stdout，保持 presenter 易测，也不把 `table` 的配置对象扩散到各 route。
+共享表格格式化集中在 `apps/cli/src/service/cliTable.ts`；`commandOutput.ts`、`repoMirrorOutput.ts` 和 `uninstallOutput.ts` 只提交 headers、cells 与列优先级，不各自计算字符宽度或拼空格。纯格式化函数返回字符串，`CliOutputService` 统一负责 stdout/stderr，因此命令类不接触输出细节。
 
-不要把 mirror 方法全部塞进现有面向 working tree 的 `GitRepositoryGateway`。可复用底层安全 spawn runner，但单独建立 `RepoMirrorGateway`，避免 task use case 被 bare-repository 细节污染。
+不要把 mirror 方法全部塞进面向 working tree 的 `IGitService`。底层安全进程执行由 `IGitCommandService` 复用，bare-repository 能力则由独立的 `IRepoMirrorGitService` 暴露，避免 Task Service 被 mirror 细节污染。
 
-现有 `runConcurrently` 文件、实现和调用接口直接保留。它已经用很小的 worker-pool 准确实现本项目的 abort/not-run 契约；引入 `p-map` 后仍需重写这些协调逻辑，不能仅以“开源替代”为理由制造无收益变更。
+并发协调统一封装为 `IConcurrencyService` / `ConcurrencyService`。它继续用小型 worker-pool 实现本项目的 abort/not-run 契约；进度展示通过 `IConcurrencyPresentationService` 注入，Core 不依赖 Listr 或 CLI。
 
 ## 12. 安全与可靠性约束
 
@@ -967,7 +946,7 @@ cron 到 scheduled job 的编译、next-run 计算和 fetch command 生成属于
 - 共享表格 renderer 对 ASCII、中文全角字符、组合字符、emoji 和 ANSI 文本按可见宽度对齐；窄 TTY、非 TTY、显式多行长字段与空数据都有稳定 snapshot；
 - repo-mirrors 普通 list、wide 详情和现有 command output 复用同一无边框样式，JSON 输出不受终端宽度或 ANSI 影响；
 - orthogonal state 到 CLI/JSON 的映射。
-- `runConcurrently` 保持原有保序、单项隔离、进度回调、等待在途任务和 `not-run` 契约。
+- `ConcurrencyService` 保持原有保序、单项隔离、进度回调、等待在途任务和 `not-run` 契约。
 - config 对未知高版本的拒绝覆写行为；出现第一个旧 schema 后再增加迁移与备份测试。
 
 ### 13.2 Adapter 契约测试
@@ -1025,7 +1004,7 @@ add -> list/path -> native registration -> manual fetch -> schedule off/auto
 ### Phase 1：可用的 mirror 闭环
 
 - `~/.gits` layout 和 JSONC store；
-- 复用 `runConcurrently`，并完成 Listr2 并行任务展示、`@bybrave/proper-lockfile2`、Pino 单次运行日志与 `table` 人类输出的公共基建适配；
+- 使用 `ConcurrencyService`，并完成 Listr2 并行任务展示、`@bybrave/proper-lockfile2`、Pino 单次运行日志与 `table` 人类输出的公共 Service；
 - add/list/path/set/remove/manual fetch 和 `--from-task`；
 - `gits install` 自动匹配 mirror、默认 `--reference-if-able`、显式配置才 `--dissociate`，并支持无损 fallback；
 - install/remove/fetch/repair/maintenance 的锁契约、machine slots、日志和 JSON contract；
