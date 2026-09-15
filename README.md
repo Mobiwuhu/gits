@@ -75,9 +75,10 @@ gits-demo/
 ├── scripts/
 │   └── AGENTS.md
 └── repos/
+    └── AGENTS.md
 ```
 
-这组文件由 Scaffdog Markdown 模板 [`packages/core/templates/taskScaffold.md`](packages/core/templates/taskScaffold.md) 生成；开发者可以直接编辑模板来维护新任务的默认内容。三份 `AGENTS.md` 初始为空，重复执行 `init` 只补齐缺失文件，不覆盖已经填写的内容。生成的 `task.config.jsonc` 会把当前支持的每个仓库参数都显式列出并逐项注释；只需替换占位符和按需修改显式值，不需要猜测隐藏默认值。编辑后类似：
+这组文件由 Scaffdog Markdown 模板 [`packages/core/templates/taskScaffold.md`](packages/core/templates/taskScaffold.md) 生成；开发者可以直接编辑模板来维护新任务的默认内容。四份 `AGENTS.md` 分别说明任务工作区、文档、自动化脚本和多仓库容器的用途与工作约定，让后续代理能够复用当前任务积累的上下文和工具。重复执行 `init` 只补齐缺失文件，不覆盖已经填写的内容。生成的 `task.config.jsonc` 会把当前支持的每个仓库参数都显式列出并逐项注释；只需替换占位符和按需修改显式值，不需要猜测隐藏默认值。编辑后类似：
 
 ```jsonc
 {
@@ -109,7 +110,7 @@ pnpm start -- -C /tmp/gits-demo install
 pnpm start -- -C /tmp/gits-demo status
 ```
 
-若已有一个任务模板目录，可直接导入其配置和脚本：
+若已有一个任务目录，可直接复用其中的任务上下文：
 
 ```sh
 mkdir -p /tmp/gits-demo-copy
@@ -117,7 +118,7 @@ pnpm start -- -C /tmp/gits-demo-copy init \
   --scan /Users/bytedance/Desktop/tasks/task-save-btn-state
 ```
 
-`--scan` 仍只从指定的源任务目录导入，不递归寻找任务配置，也不访问 `repos/`。它会原样复制根目录的 `task.config.jsonc`、递归复制 `scripts/`，并复制 Codex、Claude、Gemini、Grok、Cursor 与 Pi 的项目级配置：`.agents/`、`.codex/`、`.claude/`、`.gemini/`、`.grok/`、`.cursor/`、`.pi/`，以及根目录的 `AGENTS.md`、`CLAUDE.md`、`GEMINI.md`、`.cursorrules`、`.cursorignore`、`.cursorindexingignore`。`docs/` 中只有 `docs/AGENTS.md` 会被复制，其他文档保持排除；源目录不会被修改。
+`--scan` 会原样递归复制源任务目录中的所有文件和目录，但完全跳过源 `repos/`；仓库工作区由目标任务根据导入的 `task.config.jsonc` 自行安装。它不会递归寻找其他任务配置、访问远程或修改源目录。
 
 ### 只检出仓库中的部分目录
 
@@ -291,8 +292,8 @@ gits repo-mirrors remove api --purge --yes               # 不进 trash，永久
 
 - `init` 可重复执行，只补齐缺失的脚手架，不覆盖已有内容。
 - 配置中的 `<...>` 占位值会阻止 `install`、`status`、`fetch`、`switch` 和 `push` 执行。
-- `init --scan <source-task-dir>` 只读取源目录根的 `task.config.jsonc`，将原始 JSONC 内容复制到目标任务目录，并导入 `scripts/`、受支持的项目级 Agent 配置和 `docs/AGENTS.md`。它不递归寻找任务配置文件，不访问远程，也不会读取或修改源目录的 Git 仓库。
-- 导入仅会覆盖目标目录中的默认占位配置、空的 `AGENTS.md` 和只含默认空 `AGENTS.md` 的 `scripts/`；已有真实配置、说明或脚本会直接失败，避免覆盖用户内容。
+- `init --scan <source-task-dir>` 读取源目录根的 `task.config.jsonc`，并递归导入除 `repos/` 外的全部任务内容。它不递归寻找其他任务配置，不访问远程，也不会读取或修改源目录中的 Git 仓库。
+- 导入只会替换目标目录中由脚手架生成的默认内容；目标已有自定义内容时直接失败，避免覆盖用户文件。
 - `install` 先在工具临时目录 clone，局部检出与分支准备完成后才原子移动到目标目录；对已有仓库只会安全对齐 `checkout`，不会借机修改其他 Git 状态。
 - `install` 会透明尝试匹配健康 repo mirror；配置、镜像或锁异常时无损回退普通 clone。
 - 默认 mirror 安装保留受保护的 alternates 依赖；仅 `task.config.jsonc` 中显式 `dissociate: true` 的仓库会复制对象并断开依赖。

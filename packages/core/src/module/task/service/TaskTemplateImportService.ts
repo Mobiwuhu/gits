@@ -1,61 +1,36 @@
-import { cp, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
+import { cp, lstat, mkdir, readFile, readdir, rename, rm, stat } from 'node:fs/promises'
+import { dirname, relative, resolve, sep } from 'node:path'
+
+import { Inject } from '@wendellhu/redi'
 
 import {
   ConfigurationError,
   GitsError,
+  ITaskScaffoldService,
   UsageError,
   type ITaskTemplateImportService,
   type TaskConfiguration,
 } from '../../../contract/index'
-import {
-  isDefaultTaskConfigurationTemplate,
-  parseTaskConfiguration,
-} from './TaskConfigurationService'
+import { parseTaskConfiguration } from './TaskConfigurationService'
 
 const configurationFileName = 'task.config.jsonc'
-const scriptsDirectoryName = 'scripts'
-const agentConfigurationDirectories = [
-  '.agents',
-  '.codex',
-  '.claude',
-  '.gemini',
-  '.grok',
-  '.cursor',
-  '.pi',
-] as const
-const agentConfigurationFiles = [
-  'AGENTS.md',
-  'CLAUDE.md',
-  'GEMINI.md',
-  '.cursorrules',
-  '.cursorignore',
-  '.cursorindexingignore',
-] as const
-const nestedAgentInstructionFiles = ['docs/AGENTS.md'] as const
+const repositoriesDirectoryName = 'repos'
 
 enum ImportEntryKind {
   Directory = 'directory',
   File = 'file',
 }
 
-enum ImportTargetPolicy {
-  Absent = 'absent',
-  DefaultConfiguration = 'defaultConfiguration',
-  DefaultScripts = 'defaultScripts',
-  EmptyFile = 'emptyFile',
-}
-
 interface ImportEntry {
-  readonly content?: string
   readonly kind: ImportEntryKind
-  readonly policy: ImportTargetPolicy
   readonly relativePath: string
-  readonly sourcePath?: string
+  readonly sourcePath: string
   readonly targetPath: string
 }
 
 export class TaskTemplateImportService implements ITaskTemplateImportService {
+  constructor(@Inject(ITaskScaffoldService) private readonly scaffold: ITaskScaffoldService) {}
+
   async importTemplate(sourceRoot: string, targetRoot: string): Promise<TaskConfiguration> {
     const source = resolve(sourceRoot)
     const target = resolve(targetRoot)
@@ -69,106 +44,48 @@ export class TaskTemplateImportService implements ITaskTemplateImportService {
     const targetConfigurationPath = resolve(target, configurationFileName)
     const content = await this.readSourceConfiguration(sourceConfigurationPath)
     const configuration = parseTaskConfiguration(target, targetConfigurationPath, content)
-    const entries = await this.collectEntries(source, target, content)
+    const entries = await this.collectEntries(source, target)
 
     for (const entry of entries) {
-      await this.assertTargetCanReceive(entry)
+      await this.assertTargetCanReceive(target, entry)
     }
 
     await this.importTransaction(target, entries)
     return configuration
   }
 
-  private async collectEntries(
-    source: string,
-    target: string,
-    configurationContent: string,
-  ): Promise<readonly ImportEntry[]> {
-    const entries: ImportEntry[] = [
-      {
-        content: configurationContent,
-        kind: ImportEntryKind.File,
-        policy: ImportTargetPolicy.DefaultConfiguration,
-        relativePath: configurationFileName,
-        targetPath: resolve(target, configurationFileName),
-      },
-    ]
+  private async collectEntries(source: string, target: string): Promise<readonly ImportEntry[]> {
+    const sourceEntries = await readdir(source, { withFileTypes: true })
+    const entries: ImportEntry[] = []
 
-    const sourceScriptsPath = resolve(source, scriptsDirectoryName)
-    const hasSourceScripts = await this.pathExists(sourceScriptsPath)
-    if (hasSourceScripts) {
-      await this.assertArtifact(
-        sourceScriptsPath,
-        ImportEntryKind.Directory,
-        'source scripts path',
-        'scan-scripts-invalid',
-      )
-    }
-    entries.push({
-      kind: ImportEntryKind.Directory,
-      policy: ImportTargetPolicy.DefaultScripts,
-      relativePath: scriptsDirectoryName,
-      ...(hasSourceScripts ? { sourcePath: sourceScriptsPath } : {}),
-      targetPath: resolve(target, scriptsDirectoryName),
-    })
+    for (const sourceEntry of sourceEntries.toSorted((left, right) =>
+      left.name.localeCompare(right.name),
+    )) {
+      if (sourceEntry.name === repositoriesDirectoryName) continue
 
-    for (const relativePath of agentConfigurationDirectories) {
-      await this.collectOptionalEntry(
-        entries,
-        source,
-        target,
-        relativePath,
-        ImportEntryKind.Directory,
-      )
-    }
-    for (const relativePath of agentConfigurationFiles) {
-      await this.collectOptionalEntry(
-        entries,
-        source,
-        target,
-        relativePath,
-        ImportEntryKind.File,
-        relativePath === 'AGENTS.md' ? ImportTargetPolicy.EmptyFile : ImportTargetPolicy.Absent,
-      )
-    }
-    for (const relativePath of nestedAgentInstructionFiles) {
-      await this.collectOptionalEntry(
-        entries,
-        source,
-        target,
-        relativePath,
-        ImportEntryKind.File,
-        ImportTargetPolicy.EmptyFile,
-      )
+      const sourcePath = resolve(source, sourceEntry.name)
+      const metadata = await lstat(sourcePath)
+      let kind: ImportEntryKind
+      if (metadata.isDirectory()) {
+        kind = ImportEntryKind.Directory
+      } else if (metadata.isFile() || metadata.isSymbolicLink()) {
+        kind = ImportEntryKind.File
+      } else {
+        throw new GitsError(
+          'scan-entry-invalid',
+          `Source task entry is not a file or directory: ${sourcePath}`,
+        )
+      }
+
+      entries.push({
+        kind,
+        relativePath: sourceEntry.name,
+        sourcePath,
+        targetPath: resolve(target, sourceEntry.name),
+      })
     }
 
     return entries
-  }
-
-  private async collectOptionalEntry(
-    entries: ImportEntry[],
-    source: string,
-    target: string,
-    relativePath: string,
-    kind: ImportEntryKind,
-    policy: ImportTargetPolicy = ImportTargetPolicy.Absent,
-  ): Promise<void> {
-    const sourcePath = resolve(source, relativePath)
-    if (!(await this.pathExists(sourcePath))) return
-
-    await this.assertArtifact(
-      sourcePath,
-      kind,
-      `source agent configuration '${relativePath}'`,
-      'scan-agent-configuration-invalid',
-    )
-    entries.push({
-      kind,
-      policy,
-      relativePath,
-      sourcePath,
-      targetPath: resolve(target, relativePath),
-    })
   }
 
   private async readSourceConfiguration(path: string): Promise<string> {
@@ -183,55 +100,51 @@ export class TaskTemplateImportService implements ITaskTemplateImportService {
     }
   }
 
-  private async assertTargetCanReceive(entry: ImportEntry): Promise<void> {
+  private async assertTargetCanReceive(targetRoot: string, entry: ImportEntry): Promise<void> {
     if (!(await this.pathExists(entry.targetPath))) return
 
-    switch (entry.policy) {
-      case ImportTargetPolicy.DefaultConfiguration: {
-        const content = await readFile(entry.targetPath, 'utf8')
-        if (!isDefaultTaskConfigurationTemplate(content)) {
-          throw new ConfigurationError(
-            `${configurationFileName} already exists and is not the default placeholder; refusing to overwrite it.`,
-          )
-        }
-        return
-      }
-      case ImportTargetPolicy.DefaultScripts:
-        await this.assertDefaultScriptsDirectory(entry.targetPath)
-        return
-      case ImportTargetPolicy.EmptyFile: {
-        const content = await readFile(entry.targetPath, 'utf8')
-        if (content.length > 0) {
-          throw new ConfigurationError(
-            `Target ${entry.relativePath} is not empty; refusing to overwrite it.`,
-          )
-        }
-        return
-      }
-      case ImportTargetPolicy.Absent:
-        throw new ConfigurationError(
-          `Target ${entry.relativePath} already exists; refusing to overwrite it.`,
-        )
+    const metadata = await lstat(entry.targetPath)
+    const isReplaceable =
+      entry.kind === ImportEntryKind.Directory
+        ? metadata.isDirectory() &&
+          (await this.isReplaceableScaffoldDirectory(targetRoot, entry.targetPath))
+        : metadata.isFile() &&
+          (await this.isReplaceableScaffoldFile(
+            targetRoot,
+            entry.relativePath,
+            await readFile(entry.targetPath, 'utf8'),
+          ))
+
+    if (!isReplaceable) {
+      throw new ConfigurationError(
+        `Target ${entry.relativePath} contains non-default content; refusing to overwrite it.`,
+      )
     }
   }
 
-  private async assertDefaultScriptsDirectory(path: string): Promise<void> {
-    await this.assertDirectory(path, 'target scripts path', 'target-scripts-invalid')
+  private async isReplaceableScaffoldDirectory(root: string, path: string): Promise<boolean> {
     const entries = await readdir(path, { withFileTypes: true })
-    if (entries.length === 0) return
+    for (const entry of entries) {
+      const entryPath = resolve(path, entry.name)
+      if (entry.isDirectory()) {
+        if (!(await this.isReplaceableScaffoldDirectory(root, entryPath))) return false
+        continue
+      }
+      if (!entry.isFile()) return false
 
-    if (
-      entries.length === 1 &&
-      entries[0]?.isFile() &&
-      entries[0].name === 'AGENTS.md' &&
-      (await readFile(resolve(path, 'AGENTS.md'), 'utf8')).length === 0
-    ) {
-      return
+      const relativePath = relative(root, entryPath).split(sep).join('/')
+      const content = await readFile(entryPath, 'utf8')
+      if (!(await this.isReplaceableScaffoldFile(root, relativePath, content))) return false
     }
+    return true
+  }
 
-    throw new ConfigurationError(
-      'Target scripts directory contains files other than the default empty AGENTS.md; refusing to overwrite it.',
-    )
+  private async isReplaceableScaffoldFile(
+    root: string,
+    relativePath: string,
+    content: string,
+  ): Promise<boolean> {
+    return content.length === 0 || this.scaffold.isDefaultContent(root, relativePath, content)
   }
 
   private async importTransaction(target: string, entries: readonly ImportEntry[]): Promise<void> {
@@ -273,16 +186,6 @@ export class TaskTemplateImportService implements ITaskTemplateImportService {
   private async stageEntry(stagedRoot: string, entry: ImportEntry): Promise<void> {
     const stagedPath = resolve(stagedRoot, entry.relativePath)
     await mkdir(dirname(stagedPath), { recursive: true })
-
-    if (entry.content !== undefined) {
-      await writeFile(stagedPath, entry.content, 'utf8')
-      return
-    }
-    if (entry.sourcePath === undefined) {
-      await mkdir(stagedPath)
-      return
-    }
-
     await cp(entry.sourcePath, stagedPath, {
       dereference: false,
       errorOnExist: true,
@@ -310,29 +213,17 @@ export class TaskTemplateImportService implements ITaskTemplateImportService {
     }
   }
 
-  private async assertArtifact(
-    path: string,
-    kind: ImportEntryKind,
-    label: string,
-    code: string,
-  ): Promise<void> {
+  private async assertDirectory(path: string, label: string, code: string): Promise<void> {
     try {
-      const metadata = await lstat(path)
-      const matches =
-        metadata.isSymbolicLink() ||
-        (kind === ImportEntryKind.Directory ? metadata.isDirectory() : metadata.isFile())
-      if (!matches) {
-        throw new GitsError(code, `${label} is not a ${kind}: ${path}`)
+      const metadata = await stat(path)
+      if (!metadata.isDirectory()) {
+        throw new GitsError(code, `${label} is not a directory: ${path}`)
       }
     } catch (error) {
       if (error instanceof GitsError) throw error
       const message = error instanceof Error ? error.message : String(error)
       throw new GitsError(code, `Cannot access ${label} ${path}: ${message}`)
     }
-  }
-
-  private async assertDirectory(path: string, label: string, code: string): Promise<void> {
-    await this.assertArtifact(path, ImportEntryKind.Directory, label, code)
   }
 
   private async pathExists(path: string): Promise<boolean> {

@@ -79,9 +79,10 @@ describe('TaskConfigurationService', () => {
       assert.match(content, /远端起点/u)
       assert.match(content, /工作区范围/u)
       assert.match(content, /Mirror 对象策略/u)
-      assert.equal(await readFile(resolve(root, 'AGENTS.md'), 'utf8'), '')
-      assert.equal(await readFile(resolve(root, 'docs/AGENTS.md'), 'utf8'), '')
-      assert.equal(await readFile(resolve(root, 'scripts/AGENTS.md'), 'utf8'), '')
+      assert.match(await readFile(resolve(root, 'AGENTS.md'), 'utf8'), /临时任务工作区/u)
+      assert.match(await readFile(resolve(root, 'docs/AGENTS.md'), 'utf8'), /任务范围内的知识/u)
+      assert.match(await readFile(resolve(root, 'scripts/AGENTS.md'), 'utf8'), /可复用自动化脚本/u)
+      assert.match(await readFile(resolve(root, 'repos/AGENTS.md'), 'utf8'), /独立 Git 仓库/u)
     } finally {
       await rm(root, { force: true, recursive: true })
     }

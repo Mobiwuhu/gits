@@ -26,9 +26,7 @@ export class InitializeTaskCommand implements ICliCommand {
           scan: z
             .string()
             .optional()
-            .describe(
-              'Source task directory; imports its config, scripts, and supported agent configuration',
-            ),
+            .describe('Source task directory; imports everything except repos'),
         }),
         run: async (rawContext) => {
           const context = rawContext as CliContext & {

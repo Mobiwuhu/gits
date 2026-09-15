@@ -20,8 +20,13 @@ export class TaskScaffoldService implements ITaskScaffoldService {
         await this.writeMissingFile(file.path, file.content)
       }),
     )
+  }
 
-    await mkdir(resolve(root, 'repos'), { recursive: true })
+  async isDefaultContent(root: string, relativePath: string, content: string): Promise<boolean> {
+    const taskRoot = resolve(root)
+    const path = this.resolveOutputPath(taskRoot, relativePath)
+    const files = await this.renderTemplate(taskRoot)
+    return files.some((file) => file.path === path && file.content === content)
   }
 
   private async renderTemplate(root: string): Promise<readonly ScaffoldFile[]> {

@@ -343,7 +343,7 @@ packages/core/
     └── index.ts
 ```
 
-`templates/taskScaffold.md` 是 `gits init` 的 Scaffdog Markdown 模板，统一维护 `task.config.jsonc`、根 `AGENTS.md`、`docs/AGENTS.md` 和 `scripts/AGENTS.md` 的初始内容；`repos/` 作为空工作目录由 `TaskScaffoldService` 创建。
+`templates/taskScaffold.md` 是 `gits init` 的 Scaffdog Markdown 模板，统一维护 `task.config.jsonc`、根 `AGENTS.md`、`docs/AGENTS.md`、`scripts/AGENTS.md` 和 `repos/AGENTS.md` 的初始内容。四份 `AGENTS.md` 提供任务工作区及各子目录的默认职责和工作约定，后续代理可在任务执行过程中持续补充上下文、工具和风险边界。`repos/` 随 `repos/AGENTS.md` 一并由模板创建，不需要 `TaskScaffoldService` 单独创建空目录。
 
 上图表达职责位置，不要求第一步机械地生成全部空文件。迁移某项现有能力时才创建对应文件。
 

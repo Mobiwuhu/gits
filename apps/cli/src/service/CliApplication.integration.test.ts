@@ -55,13 +55,15 @@ describe('gits CLI', () => {
       const initialized = await gits(['-C', task, 'init', '--json'])
       assert.equal(initialized.code, 0)
       assert.deepEqual(parseOutput(initialized).repos, [])
-      assert.equal(await readFile(resolve(task, 'AGENTS.md'), 'utf8'), '')
-      assert.equal(await readFile(resolve(task, 'docs/AGENTS.md'), 'utf8'), '')
-      assert.equal(await readFile(resolve(task, 'scripts/AGENTS.md'), 'utf8'), '')
+      assert.match(await readFile(resolve(task, 'AGENTS.md'), 'utf8'), /临时任务工作区/u)
+      assert.match(await readFile(resolve(task, 'docs/AGENTS.md'), 'utf8'), /任务范围内的知识/u)
+      assert.match(await readFile(resolve(task, 'scripts/AGENTS.md'), 'utf8'), /可复用自动化脚本/u)
+      assert.match(await readFile(resolve(task, 'repos/AGENTS.md'), 'utf8'), /独立 Git 仓库/u)
 
       await writeFile(resolve(task, 'AGENTS.md'), 'preserve this content\n')
       await writeFile(resolve(task, 'docs/AGENTS.md'), 'preserve docs content\n')
       await writeFile(resolve(task, 'scripts/AGENTS.md'), 'preserve scripts content\n')
+      await writeFile(resolve(task, 'repos/AGENTS.md'), 'preserve repos content\n')
       const repeated = await gits(['-C', task, 'init', '--json'])
       assert.equal(repeated.code, 0)
       assert.equal(await readFile(resolve(task, 'AGENTS.md'), 'utf8'), 'preserve this content\n')
@@ -72,6 +74,10 @@ describe('gits CLI', () => {
       assert.equal(
         await readFile(resolve(task, 'scripts/AGENTS.md'), 'utf8'),
         'preserve scripts content\n',
+      )
+      assert.equal(
+        await readFile(resolve(task, 'repos/AGENTS.md'), 'utf8'),
+        'preserve repos content\n',
       )
 
       const incomplete = await gits(['-C', task, 'status', '--json'])
@@ -246,7 +252,7 @@ describe('gits CLI', () => {
     }
   })
 
-  it('imports a source task template and agent configuration without modifying the source task', async () => {
+  it('imports every source task entry except repos without modifying the source task', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'gits-scan-test-'))
     const source = resolve(root, 'source-task')
     const target = resolve(root, 'target-task')
@@ -269,33 +275,34 @@ describe('gits CLI', () => {
       '}',
       '',
     ].join('\n')
-    const agentFiles = [
+    const copiedFiles = [
+      ['AGENTS.md', 'task instructions\n'],
+      ['docs/AGENTS.md', 'documentation instructions\n'],
+      ['docs/source-only.md', 'ordinary documentation\n'],
+      ['scripts/AGENTS.md', 'script instructions\n'],
+      ['scripts/bootstrap.sh', '#!/bin/sh\necho bootstrap\n'],
+      ['scripts/nested/check.sh', '#!/bin/sh\necho check\n'],
       ['.agents/skills/shared/SKILL.md', 'shared skill\n'],
       ['.codex/hooks/preCommit.sh', 'codex hook\n'],
-      ['.claude/skills/review/SKILL.md', 'claude skill\n'],
-      ['.gemini/hooks/afterTool.sh', 'gemini hook\n'],
-      ['.grok/skills/debug/SKILL.md', 'grok skill\n'],
-      ['.cursor/hooks.json', '{"version":1}\n'],
-      ['.pi/skills/refactor/SKILL.md', 'pi skill\n'],
+      ['.workspace/settings.json', '{"theme":"dark"}\n'],
+      ['justfile', 'dev:\n    pnpm dev\n'],
+      ['processCompose.yaml', 'version: "0.5"\n'],
     ] as const
 
     try {
-      await mkdir(resolve(source, 'scripts/nested'), { recursive: true })
-      await mkdir(resolve(source, 'docs'), { recursive: true })
+      await mkdir(source)
       await writeFile(resolve(source, 'task.config.jsonc'), sourceConfig)
-      await writeFile(resolve(source, 'scripts/bootstrap.sh'), '#!/bin/sh\necho bootstrap\n')
-      await writeFile(resolve(source, 'scripts/nested/check.sh'), '#!/bin/sh\necho check\n')
-      await writeFile(resolve(source, 'scripts/AGENTS.md'), 'script instructions\n')
-      await writeFile(resolve(source, 'docs/source-only.md'), 'do not import\n')
-      await writeFile(resolve(source, 'docs/AGENTS.md'), 'documentation instructions\n')
-      await writeFile(resolve(source, 'AGENTS.md'), 'task instructions\n')
-      await writeFile(resolve(source, 'CLAUDE.md'), 'claude instructions\n')
-      await writeFile(resolve(source, 'GEMINI.md'), 'gemini instructions\n')
-      await writeFile(resolve(source, '.cursorrules'), 'cursor rules\n')
-      for (const [path, content] of agentFiles) {
+      for (const [path, content] of copiedFiles) {
         await mkdir(resolve(source, path, '..'), { recursive: true })
         await writeFile(resolve(source, path), content)
       }
+      await mkdir(resolve(source, 'repos/project-manager/.git'), { recursive: true })
+      await writeFile(resolve(source, 'repos/AGENTS.md'), 'source repository instructions\n')
+      await writeFile(
+        resolve(source, 'repos/project-manager/package.json'),
+        '{"name":"project-manager"}\n',
+      )
+      await writeFile(resolve(source, 'repos/project-manager/.git/HEAD'), 'ref: refs/heads/main\n')
 
       await mkdir(target)
       const imported = await gits(['-C', target, 'init', '--scan', '../source-task', '--json'])
@@ -305,34 +312,15 @@ describe('gits CLI', () => {
         ['project-manager', 'meego-ipd'],
       )
       assert.equal(await readFile(resolve(target, 'task.config.jsonc'), 'utf8'), sourceConfig)
-      assert.equal(
-        await readFile(resolve(target, 'scripts/bootstrap.sh'), 'utf8'),
-        '#!/bin/sh\necho bootstrap\n',
-      )
-      assert.equal(
-        await readFile(resolve(target, 'scripts/nested/check.sh'), 'utf8'),
-        '#!/bin/sh\necho check\n',
-      )
-      await assert.rejects(() => readFile(resolve(target, 'docs/source-only.md'), 'utf8'))
-      assert.equal(await readFile(resolve(target, 'AGENTS.md'), 'utf8'), 'task instructions\n')
-      assert.equal(
-        await readFile(resolve(target, 'docs/AGENTS.md'), 'utf8'),
-        'documentation instructions\n',
-      )
-      assert.equal(
-        await readFile(resolve(target, 'scripts/AGENTS.md'), 'utf8'),
-        'script instructions\n',
-      )
-      assert.equal(await readFile(resolve(target, 'CLAUDE.md'), 'utf8'), 'claude instructions\n')
-      assert.equal(await readFile(resolve(target, 'GEMINI.md'), 'utf8'), 'gemini instructions\n')
-      assert.equal(await readFile(resolve(target, '.cursorrules'), 'utf8'), 'cursor rules\n')
-      for (const [path, content] of agentFiles) {
+      for (const [path, content] of copiedFiles) {
         assert.equal(await readFile(resolve(target, path), 'utf8'), content)
       }
+      await assert.rejects(() => access(resolve(target, 'repos/project-manager')))
+      assert.match(await readFile(resolve(target, 'repos/AGENTS.md'), 'utf8'), /独立 Git 仓库/u)
       assert.equal(await readFile(resolve(source, 'task.config.jsonc'), 'utf8'), sourceConfig)
       assert.equal(
-        await readFile(resolve(source, 'scripts/bootstrap.sh'), 'utf8'),
-        '#!/bin/sh\necho bootstrap\n',
+        await readFile(resolve(source, 'repos/project-manager/package.json'), 'utf8'),
+        '{"name":"project-manager"}\n',
       )
     } finally {
       await rm(root, { force: true, recursive: true })
