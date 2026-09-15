@@ -2,7 +2,6 @@ import { Inject } from '@wendellhu/redi'
 
 import {
   IConcurrencyService,
-  type IFetchRepoMirrorService,
   IRepoMirrorConfigurationService,
   IRepoMirrorDependencyService,
   IRepoMirrorGitService,
@@ -14,10 +13,13 @@ import {
   RepoMirrorInvocationSource,
   RepoMirrorLastRunStatus,
   RepoMirrorRepositoryState,
-  type FetchRepoMirrorsInput,
-  type RepoMirrorCommandOutput,
-  type RepoMirrorDefinition,
-  type RepoMirrorView,
+} from '../../../contract/index'
+import type {
+  IFetchRepoMirrorService,
+  FetchRepoMirrorsInput,
+  RepoMirrorCommandOutput,
+  RepoMirrorDefinition,
+  RepoMirrorView,
 } from '../../../contract/index'
 import {
   commandError,
@@ -30,46 +32,64 @@ import {
 
 export class FetchRepoMirrorService implements IFetchRepoMirrorService {
   constructor(
-    @Inject(IConcurrencyService) private readonly concurrency: IConcurrencyService,
+    @Inject(IConcurrencyService)
+    private readonly concurrency: IConcurrencyService,
     @Inject(IRepoMirrorConfigurationService)
     private readonly configuration: IRepoMirrorConfigurationService,
     @Inject(IRepoMirrorDependencyService)
     private readonly dependencies: IRepoMirrorDependencyService,
     @Inject(IRepoMirrorGitService) private readonly git: IRepoMirrorGitService,
-    @Inject(IRepoMirrorLockService) private readonly lock: IRepoMirrorLockService,
-    @Inject(IRepoMirrorLoggerService) private readonly logger: IRepoMirrorLoggerService,
-    @Inject(IRepoMirrorStoreService) private readonly store: IRepoMirrorStoreService,
-    @Inject(IRepoMirrorViewService) private readonly view: IRepoMirrorViewService,
+    @Inject(IRepoMirrorLockService)
+    private readonly lock: IRepoMirrorLockService,
+    @Inject(IRepoMirrorLoggerService)
+    private readonly logger: IRepoMirrorLoggerService,
+    @Inject(IRepoMirrorStoreService)
+    private readonly store: IRepoMirrorStoreService,
+    @Inject(IRepoMirrorViewService)
+    private readonly view: IRepoMirrorViewService
   ) {}
 
-  async execute(input: FetchRepoMirrorsInput): Promise<RepoMirrorCommandOutput> {
+  async execute(
+    input: FetchRepoMirrorsInput
+  ): Promise<RepoMirrorCommandOutput> {
     validateJobs(input.jobs)
     const configuration = await this.store.load()
     const definitions = this.configuration.select(configuration, input.names)
     const effectiveJobs = Math.min(
       input.jobs ?? 4,
-      configuration.repoMirrorsSettings.maxConcurrentFetches,
+      configuration.repoMirrorsSettings.maxConcurrentFetches
     )
-    const summary = await this.concurrency.run<RepoMirrorDefinition, RepoMirrorView>(
+    const summary = await this.concurrency.run<
+      RepoMirrorDefinition,
+      RepoMirrorView
+    >(
       definitions,
       async (definition) =>
-        this.#fetchOne(definition, configuration.repoMirrorsSettings.maxConcurrentFetches, input),
+        this.#fetchOne(
+          definition,
+          configuration.repoMirrorsSettings.maxConcurrentFetches,
+          input
+        ),
       {
         concurrency: effectiveJobs,
         ...(input.signal === undefined ? {} : { signal: input.signal }),
-      },
+      }
     )
-    const mirrors = await settledViews(summary.results, (definition) =>
+    const mirrors = await settledViews(summary.results, async (definition) =>
       this.view.create(definition, RepoMirrorAction.NotRun, false, {
-        error: commandError('not-run', 'Mirror was not fetched before interruption.'),
-      }),
+        error: commandError(
+          'not-run',
+          'Mirror was not fetched before interruption.'
+        ),
+      })
     )
     return {
       command: 'repo-mirrors fetch',
       mirrors,
       ok: mirrors.every(
         (mirror) =>
-          mirror.action !== RepoMirrorAction.Failed && mirror.action !== RepoMirrorAction.NotRun,
+          mirror.action !== RepoMirrorAction.Failed &&
+          mirror.action !== RepoMirrorAction.NotRun
       ),
     }
   }
@@ -77,7 +97,7 @@ export class FetchRepoMirrorService implements IFetchRepoMirrorService {
   async #fetchOne(
     definition: RepoMirrorDefinition,
     maximumSlots: number,
-    input: FetchRepoMirrorsInput,
+    input: FetchRepoMirrorsInput
   ): Promise<RepoMirrorView> {
     const session = await this.logger.start(definition.name, input.source)
     let sessionFinished = false
@@ -97,7 +117,7 @@ export class FetchRepoMirrorService implements IFetchRepoMirrorService {
         await finish(RepoMirrorLastRunStatus.SkippedLocked, {
           error: 'No machine fetch slot was available.',
         })
-        return this.view.create(
+        return await this.view.create(
           definition,
           input.source === RepoMirrorInvocationSource.Scheduler
             ? RepoMirrorAction.Skipped
@@ -107,15 +127,22 @@ export class FetchRepoMirrorService implements IFetchRepoMirrorService {
             error:
               input.source === RepoMirrorInvocationSource.Scheduler
                 ? null
-                : commandError('fetch-slots-busy', 'No machine fetch slot was available.'),
-          },
+                : commandError(
+                    'fetch-slots-busy',
+                    'No machine fetch slot was available.'
+                  ),
+          }
         )
       }
 
-      releaseMirror = await this.lock.acquireMirror(definition.name, { wait: false })
+      releaseMirror = await this.lock.acquireMirror(definition.name, {
+        wait: false,
+      })
       if (releaseMirror === null) {
-        await finish(RepoMirrorLastRunStatus.SkippedLocked, { error: 'Mirror is busy.' })
-        return this.view.create(
+        await finish(RepoMirrorLastRunStatus.SkippedLocked, {
+          error: 'Mirror is busy.',
+        })
+        return await this.view.create(
           definition,
           input.source === RepoMirrorInvocationSource.Scheduler
             ? RepoMirrorAction.Skipped
@@ -125,31 +152,51 @@ export class FetchRepoMirrorService implements IFetchRepoMirrorService {
             error:
               input.source === RepoMirrorInvocationSource.Scheduler
                 ? null
-                : commandError('mirror-busy', 'Mirror is being used by another process.'),
-          },
+                : commandError(
+                    'mirror-busy',
+                    'Mirror is being used by another process.'
+                  ),
+          }
         )
       }
       const path = this.view.mirrorPath(definition.name)
       const health = await this.git.inspect(definition, path)
       if (health.state !== RepoMirrorRepositoryState.Ready) {
-        await finish(RepoMirrorLastRunStatus.Failed, { error: health.issues.join(' ') })
-        return this.view.create(definition, RepoMirrorAction.Failed, false, {
-          error: commandError('mirror-invalid', health.issues.join(' ')),
+        await finish(RepoMirrorLastRunStatus.Failed, {
+          error: health.issues.join(' '),
         })
+        return await this.view.create(
+          definition,
+          RepoMirrorAction.Failed,
+          false,
+          {
+            error: commandError('mirror-invalid', health.issues.join(' ')),
+          }
+        )
       }
-      const fetched = await this.git.fetchMirror(path, signalOptions(input.signal))
-      for (const command of fetched.commands) session.event(command)
+      const fetched = await this.git.fetchMirror(
+        path,
+        signalOptions(input.signal)
+      )
+      for (const command of fetched.commands) {
+        session.event(command)
+      }
       if (!fetched.ok) {
         const message = operationMessage(fetched.commands)
         await finish(
           input.signal?.aborted === true
             ? RepoMirrorLastRunStatus.Interrupted
             : RepoMirrorLastRunStatus.Failed,
-          { error: message },
+          { error: message }
         )
-        return this.view.create(definition, RepoMirrorAction.Failed, false, {
-          error: commandError('mirror-fetch-failed', message),
-        })
+        return await this.view.create(
+          definition,
+          RepoMirrorAction.Failed,
+          false,
+          {
+            error: commandError('mirror-fetch-failed', message),
+          }
+        )
       }
       if (input.maintenance) {
         const dependents = await this.dependencies.list(definition.name, path)
@@ -157,23 +204,38 @@ export class FetchRepoMirrorService implements IFetchRepoMirrorService {
           const message =
             'Maintenance is blocked while repositories borrow objects from this mirror.'
           await finish(RepoMirrorLastRunStatus.Failed, { error: message })
-          return this.view.create(definition, RepoMirrorAction.Failed, false, {
-            dependents: dependents.map((dependent) => dependent.repositoryPath),
-            error: commandError('mirror-has-dependents', message),
-          })
+          return await this.view.create(
+            definition,
+            RepoMirrorAction.Failed,
+            false,
+            {
+              dependents: dependents.map(
+                (dependent) => dependent.repositoryPath
+              ),
+              error: commandError('mirror-has-dependents', message),
+            }
+          )
         }
-        const maintained = await this.git.maintainMirror(path, signalOptions(input.signal))
+        const maintained = await this.git.maintainMirror(
+          path,
+          signalOptions(input.signal)
+        )
         session.event(maintained)
         if (maintained.aborted || maintained.exitCode !== 0) {
           const message = commandMessage(maintained)
           await finish(RepoMirrorLastRunStatus.Failed, { error: message })
-          return this.view.create(definition, RepoMirrorAction.Failed, false, {
-            error: commandError('mirror-maintenance-failed', message),
-          })
+          return await this.view.create(
+            definition,
+            RepoMirrorAction.Failed,
+            false,
+            {
+              error: commandError('mirror-maintenance-failed', message),
+            }
+          )
         }
       }
       await finish(RepoMirrorLastRunStatus.Success)
-      return this.view.create(definition, RepoMirrorAction.Fetched)
+      return await this.view.create(definition, RepoMirrorAction.Fetched)
     } catch (error) {
       if (!sessionFinished) {
         sessionFinished = true
@@ -183,14 +245,20 @@ export class FetchRepoMirrorService implements IFetchRepoMirrorService {
             input.signal?.aborted === true
               ? RepoMirrorLastRunStatus.Interrupted
               : RepoMirrorLastRunStatus.Failed,
-            { error: message },
+            { error: message }
           )
-          .catch(() => undefined)
+          .catch(() => {
+            /* 无需处理清理失败 */
+          })
       }
       throw error
     } finally {
-      if (releaseMirror !== null) await releaseMirror()
-      if (releaseSlot !== null) await releaseSlot()
+      if (releaseMirror !== null) {
+        await releaseMirror()
+      }
+      if (releaseSlot !== null) {
+        await releaseSlot()
+      }
     }
   }
 }

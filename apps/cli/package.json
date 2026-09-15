@@ -1,11 +1,23 @@
 {
-  "name": "gits",
+  "name": "@gits/cli",
   "version": "0.1.0",
-  "private": true,
+  "description": "Command-line interface for managing multi-repository task workspaces",
+  "keywords": [
+    "cli",
+    "git",
+    "monorepo",
+    "workspace"
+  ],
   "bin": {
     "gits": "./dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsdown --config-loader tsx",
     "build:watch": "tsdown --config-loader tsx --watch",
@@ -19,5 +31,8 @@
     "incur": "catalog:",
     "listr2": "catalog:",
     "table": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.17.1"
   }
 }

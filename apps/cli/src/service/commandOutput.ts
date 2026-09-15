@@ -1,4 +1,5 @@
-import { RepositoryFlag, RepositoryState, type RepositoryCommandResult } from '@gits/core'
+import { RepositoryFlag, RepositoryState } from '@gits/core'
+import type { RepositoryCommandResult } from '@gits/core'
 
 import type { CommandPresentation } from '../contract/index'
 import { formatCliTable } from './cliTable'
@@ -13,33 +14,49 @@ export function formatCommandOutput(presentation: CommandPresentation): string {
   }
 
   const rows = output.repos.map(toRow)
-  const headers = ['REPO', 'EXPECTED', 'ACTUAL', 'WORKTREE', 'CHECKOUT', 'UPSTREAM', 'STATE']
+  const headers = [
+    'REPO',
+    'EXPECTED',
+    'ACTUAL',
+    'WORKTREE',
+    'CHECKOUT',
+    'UPSTREAM',
+    'STATE',
+  ]
   const body = formatCliTable([headers, ...rows])
   const errors = output.repos
     .filter((repository) => repository.error)
     .map(
-      (repository) => `${repository.name}: ${repository.error?.code}: ${repository.error?.message}`,
+      (repository) =>
+        `${repository.name}: ${repository.error?.code}: ${repository.error?.message}`
     )
   const mirrorNotes = output.repos.flatMap((repository) => {
     const notes: string[] = []
     if (repository.mirror !== undefined) {
       notes.push(
-        `${repository.name}: cloned via repo mirror ${repository.mirror.name} (${repository.mirror.path}) · ${repository.mirror.dissociated ? 'dissociated' : 'shared objects retained'}`,
+        `${repository.name}: cloned via repo mirror ${repository.mirror.name} (${repository.mirror.path}) · ${repository.mirror.dissociated ? 'dissociated' : 'shared objects retained'}`
       )
     }
     if (repository.mirrorFallbackReason !== undefined) {
-      notes.push(`${repository.name}: repo mirror fallback: ${repository.mirrorFallbackReason}`)
+      notes.push(
+        `${repository.name}: repo mirror fallback: ${repository.mirrorFallbackReason}`
+      )
     }
     return notes
   })
 
-  return [body, ...mirrorNotes, ...errors, `result: ${output.ok ? 'ok' : 'partial failure'}`].join(
-    '\n',
-  )
+  return [
+    body,
+    ...mirrorNotes,
+    ...errors,
+    `result: ${output.ok ? 'ok' : 'partial failure'}`,
+  ].join('\n')
 }
 
 function toRow(repository: RepositoryCommandResult): string[] {
-  const dirty = repository.flags.includes(RepositoryFlag.Dirty) ? 'dirty' : 'clean'
+  const dirty = repository.flags.includes(RepositoryFlag.Dirty)
+    ? 'dirty'
+    : 'clean'
   const state = [formatState(repository), ...repository.flags].join(', ')
 
   return [
@@ -74,10 +91,16 @@ function checkoutLabel(checkout: readonly string[] | null): string {
 }
 
 function formatState(repository: RepositoryCommandResult): string {
-  if (repository.state === RepositoryState.Ahead && repository.actual.ahead !== null) {
+  if (
+    repository.state === RepositoryState.Ahead &&
+    repository.actual.ahead !== null
+  ) {
     return `ahead ${repository.actual.ahead}`
   }
-  if (repository.state === RepositoryState.Behind && repository.actual.behind !== null) {
+  if (
+    repository.state === RepositoryState.Behind &&
+    repository.actual.behind !== null
+  ) {
     return `behind ${repository.actual.behind}`
   }
   if (

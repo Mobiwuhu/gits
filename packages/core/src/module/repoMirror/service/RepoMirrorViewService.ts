@@ -9,12 +9,14 @@ import {
   IRepoMirrorGitService,
   IRepoMirrorLoggerService,
   IRepoMirrorSchedulerService,
-  type IRepoMirrorViewService,
-  type RepoMirrorAction,
-  type RepoMirrorDefinition,
-  type RepoMirrorScheduledInvocation,
-  type RepoMirrorView,
-  type RepoMirrorViewOverrides,
+} from '../../../contract/index'
+import type {
+  IRepoMirrorViewService,
+  RepoMirrorAction,
+  RepoMirrorDefinition,
+  RepoMirrorScheduledInvocation,
+  RepoMirrorView,
+  RepoMirrorViewOverrides,
 } from '../../../contract/index'
 import { nextScheduledDate } from './repoMirrorSchedule'
 
@@ -24,34 +26,43 @@ export class RepoMirrorViewService implements IRepoMirrorViewService {
     private readonly dependencies: IRepoMirrorDependencyService,
     @Inject(IFileSystemService) private readonly fileSystem: IFileSystemService,
     @Inject(IRepoMirrorGitService) private readonly git: IRepoMirrorGitService,
-    @Inject(IRepoMirrorLoggerService) private readonly logger: IRepoMirrorLoggerService,
+    @Inject(IRepoMirrorLoggerService)
+    private readonly logger: IRepoMirrorLoggerService,
     @Inject(IGitsPathService) private readonly paths: IGitsPathService,
-    @Inject(IRepoMirrorSchedulerService) private readonly scheduler: IRepoMirrorSchedulerService,
+    @Inject(IRepoMirrorSchedulerService)
+    private readonly scheduler: IRepoMirrorSchedulerService
   ) {}
 
   async create(
     definition: RepoMirrorDefinition,
     action: RepoMirrorAction,
     includeSize = false,
-    overrides: RepoMirrorViewOverrides = {},
+    overrides: RepoMirrorViewOverrides = {}
   ): Promise<RepoMirrorView> {
     const path = this.mirrorPath(definition.name)
-    const [health, lastRun, dependents, sizeBytes, scheduler] = await Promise.all([
-      this.git.inspect(definition, path),
-      this.logger.readLastRun(definition.name),
-      overrides.dependents === undefined
-        ? this.dependencies.list(definition.name, path)
-        : Promise.resolve([]),
-      includeSize ? this.fileSystem.directorySize(path) : Promise.resolve(null),
-      this.scheduler.inspect(definition),
-    ])
+    const [health, lastRun, dependents, sizeBytes, scheduler] =
+      await Promise.all([
+        this.git.inspect(definition, path),
+        this.logger.readLastRun(definition.name),
+        overrides.dependents === undefined
+          ? this.dependencies.list(definition.name, path)
+          : Promise.resolve([]),
+        includeSize
+          ? this.fileSystem.directorySize(path)
+          : Promise.resolve(null),
+        this.scheduler.inspect(definition),
+      ])
     const next =
-      definition.schedule === undefined ? null : nextScheduledDate(definition.schedule.cron)
+      definition.schedule === undefined
+        ? null
+        : nextScheduledDate(definition.schedule.cron)
     const invocation = this.scheduler.invocation(definition.name)
     return {
       action: overrides.action ?? action,
       aliases: definition.urls.slice(1),
-      dependents: overrides.dependents ?? dependents.map((dependent) => dependent.repositoryPath),
+      dependents:
+        overrides.dependents ??
+        dependents.map((dependent) => dependent.repositoryPath),
       error: overrides.error ?? null,
       fetchCommand: formatInvocation(invocation),
       fetchInvocation: invocation,
@@ -67,7 +78,9 @@ export class RepoMirrorViewService implements IRepoMirrorViewService {
       schedule: definition.schedule ?? null,
       scheduleState: scheduler.state,
       schedulerBackend: scheduler.backend,
-      ...(scheduler.message === undefined ? {} : { schedulerMessage: scheduler.message }),
+      ...(scheduler.message === undefined
+        ? {}
+        : { schedulerMessage: scheduler.message }),
       sizeBytes,
       urls: definition.urls,
     }
@@ -90,6 +103,8 @@ function formatInvocation(invocation: RepoMirrorScheduledInvocation): string {
 }
 
 function shellQuote(value: string): string {
-  if (/^[a-zA-Z0-9_./:=+-]+$/u.test(value)) return value
-  return `'${value.replace(/'/gu, `'"'"'`)}'`
+  if (/^[a-zA-Z0-9_./:=+-]+$/u.test(value)) {
+    return value
+  }
+  return `'${value.replaceAll("'", `'"'"'`)}'`
 }

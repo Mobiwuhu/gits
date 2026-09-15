@@ -7,13 +7,15 @@ import {
   IFileSystemService,
   IGitsPathService,
   RepoMirrorInvocationSource,
-  type IStableRunnerInstaller,
-  type RepoMirrorScheduledInvocation,
+} from '../../../contract/index'
+import type {
+  IStableRunnerInstaller,
+  RepoMirrorScheduledInvocation,
 } from '../../../contract/index'
 import { gitsManagedArtifactRegistry } from '../../../service/index'
 
 export const nativeRepoMirrorLogMaximumBytes: number = 1024 * 1024
-export const nativeRepoMirrorLogMaximumBackups: number = 2
+export const nativeRepoMirrorLogMaximumBackups = 2
 
 export class StableRunnerInstaller implements IStableRunnerInstaller {
   readonly #cliEntry: string
@@ -23,7 +25,7 @@ export class StableRunnerInstaller implements IStableRunnerInstaller {
     @Inject(IGitsPathService) private readonly paths: IGitsPathService,
     @Inject(IFileSystemService) private readonly fileSystem: IFileSystemService,
     cliEntry: string = process.argv[1] ?? '',
-    nodeArguments: readonly string[] = schedulerNodeArguments(process.execArgv),
+    nodeArguments: readonly string[] = schedulerNodeArguments(process.execArgv)
   ) {
     this.#cliEntry = resolve(cliEntry)
     this.#nodeArguments = nodeArguments
@@ -58,10 +60,10 @@ export class StableRunnerInstaller implements IStableRunnerInstaller {
         '--json',
       ],
       environment: {
-        GIT_TERMINAL_PROMPT: '0',
         GITS_GIT_EXECUTABLE: process.env.GITS_GIT_EXECUTABLE ?? 'git',
         GITS_HOME: this.paths.home,
         GITS_NATIVE_LOG: resolve(this.paths.logs, `${name}.native.log`),
+        GIT_TERMINAL_PROMPT: '0',
         HOME: process.env.HOME ?? '',
         PATH: path,
       },
@@ -70,14 +72,17 @@ export class StableRunnerInstaller implements IStableRunnerInstaller {
   }
 
   path(): string {
-    return resolve(this.paths.bin, gitsManagedArtifactRegistry.stableSchedulerRunner.fileName)
+    return resolve(
+      this.paths.bin,
+      gitsManagedArtifactRegistry.stableSchedulerRunner.fileName
+    )
   }
 }
 
 function runnerSource(
   executable: string,
   nodeArguments: readonly string[],
-  cliEntry: string,
+  cliEntry: string
 ): string {
   const prefix = JSON.stringify([...nodeArguments, cliEntry])
   return [
@@ -179,15 +184,22 @@ function runnerSource(
   ].join('\n')
 }
 
-function schedulerNodeArguments(arguments_: readonly string[]): readonly string[] {
+function schedulerNodeArguments(
+  arguments_: readonly string[]
+): readonly string[] {
   const kept: string[] = []
   for (let index = 0; index < arguments_.length; index += 1) {
     const argument = arguments_[index]
-    if (argument === undefined) continue
-    if (argument.startsWith('--import=') || argument.startsWith('--loader=')) kept.push(argument)
-    else if (argument === '--import' || argument === '--loader') {
+    if (argument === undefined) {
+      continue
+    }
+    if (argument.startsWith('--import=') || argument.startsWith('--loader=')) {
+      kept.push(argument)
+    } else if (argument === '--import' || argument === '--loader') {
       const value = arguments_[index + 1]
-      if (value !== undefined) kept.push(argument, value)
+      if (value !== undefined) {
+        kept.push(argument, value)
+      }
       index += 1
     }
   }
@@ -195,5 +207,7 @@ function schedulerNodeArguments(arguments_: readonly string[]): readonly string[
 }
 
 function uniquePathEntries(entries: readonly string[]): readonly string[] {
-  return entries.filter((entry, index) => entry.length > 0 && entries.indexOf(entry) === index)
+  return entries.filter(
+    (entry, index) => entry.length > 0 && entries.indexOf(entry) === index
+  )
 }

@@ -1,4 +1,5 @@
-import { createIdentifier, type IdentifierDecorator } from '@wendellhu/redi'
+import { createIdentifier } from '@wendellhu/redi'
+import type { IdentifierDecorator } from '@wendellhu/redi'
 
 export interface ProcessResult {
   readonly args: readonly string[]
@@ -12,7 +13,10 @@ export interface IProcessService {
   run(
     executable: string,
     args: readonly string[],
-    options?: Readonly<{ environment?: NodeJS.ProcessEnv; signal?: AbortSignal }>,
+    options?: Readonly<{
+      environment?: NodeJS.ProcessEnv
+      signal?: AbortSignal
+    }>
   ): Promise<ProcessResult>
 }
 

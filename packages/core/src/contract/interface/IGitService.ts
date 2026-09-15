@@ -1,4 +1,5 @@
-import { createIdentifier, type IdentifierDecorator } from '@wendellhu/redi'
+import { createIdentifier } from '@wendellhu/redi'
+import type { IdentifierDecorator } from '@wendellhu/redi'
 
 import type {
   GitBranchPreparation,
@@ -18,34 +19,60 @@ export interface IGitService {
   applyCheckout(
     path: string,
     checkout: readonly string[] | null,
-    options?: GitOperationOptions,
+    options?: GitOperationOptions
   ): Promise<GitCommandResult>
-  checkRefFormat(branch: string, options?: GitOperationOptions): Promise<GitCommandResult>
-  clone(url: string, destination: string, options?: GitCloneOptions): Promise<GitCommandResult>
+  checkRefFormat(
+    branch: string,
+    options?: GitOperationOptions
+  ): Promise<GitCommandResult>
+  clone(
+    url: string,
+    destination: string,
+    options?: GitCloneOptions
+  ): Promise<GitCommandResult>
   fetch(path: string, options?: GitOperationOptions): Promise<GitCommandResult>
-  getRemoteUrl(path: string, remote?: string, options?: GitOperationOptions): Promise<string | null>
-  hasRef(path: string, fullRef: string, options?: GitOperationOptions): Promise<GitReferenceLookup>
+  getRemoteUrl(
+    path: string,
+    remote?: string,
+    options?: GitOperationOptions
+  ): Promise<string | null>
+  hasRef(
+    path: string,
+    fullRef: string,
+    options?: GitOperationOptions
+  ): Promise<GitReferenceLookup>
   inspect(
     repository: TaskRepository,
-    options?: GitOperationOptions,
+    options?: GitOperationOptions
   ): Promise<RepositoryCommandResult>
   prepareBranch(
     path: string,
     branch: GitBranchPreparationOptions,
-    options?: GitOperationOptions,
+    options?: GitOperationOptions
   ): Promise<GitBranchPreparation>
-  probeRemote(url: string, options?: GitOperationOptions): Promise<GitCommandResult>
-  push(path: string, branch: string, options?: GitPushOptions): Promise<GitCommandResult>
-  stash(path: string, message: string, options?: GitOperationOptions): Promise<GitStashResult>
+  probeRemote(
+    url: string,
+    options?: GitOperationOptions
+  ): Promise<GitCommandResult>
+  push(
+    path: string,
+    branch: string,
+    options?: GitPushOptions
+  ): Promise<GitCommandResult>
+  stash(
+    path: string,
+    message: string,
+    options?: GitOperationOptions
+  ): Promise<GitStashResult>
   switchToBranch(
     path: string,
     branch: Omit<GitBranchPreparationOptions, 'fetchIfMissing'>,
-    options?: GitOperationOptions,
+    options?: GitOperationOptions
   ): Promise<GitBranchPreparation>
   validateCheckoutPaths(
     path: string,
     checkout: readonly string[],
-    options?: GitOperationOptions,
+    options?: GitOperationOptions
   ): Promise<GitCheckoutPathValidation>
 }
 

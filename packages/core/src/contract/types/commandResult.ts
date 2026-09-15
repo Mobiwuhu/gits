@@ -15,7 +15,8 @@ export enum RepositoryState {
   SyncedLocal = 'synced-local',
 }
 
-export const repositoryStates: readonly RepositoryState[] = Object.values(RepositoryState)
+export const repositoryStates: readonly RepositoryState[] =
+  Object.values(RepositoryState)
 
 export enum RepositoryFlag {
   CheckoutDifferent = 'checkout-different',
@@ -23,7 +24,8 @@ export enum RepositoryFlag {
   UrlDifferent = 'url-different',
 }
 
-export const repositoryFlags: readonly RepositoryFlag[] = Object.values(RepositoryFlag)
+export const repositoryFlags: readonly RepositoryFlag[] =
+  Object.values(RepositoryFlag)
 
 export enum RepositoryActionResult {
   Success = 'success',
@@ -76,35 +78,39 @@ export interface CommandOutput {
   readonly repos: readonly RepositoryCommandResult[]
 }
 
-export function expectedState(repository: TaskRepository): ExpectedRepositoryState {
+export function expectedState(
+  repository: TaskRepository
+): ExpectedRepositoryState {
   return {
-    url: repository.url,
     branch: repository.branch,
     checkout: repository.checkout,
     upstream: `origin/${repository.branch}`,
+    url: repository.url,
   }
 }
 
 export function emptyActualState(): ActualRepositoryState {
   return {
-    url: null,
+    ahead: null,
+    behind: null,
     branch: null,
     checkout: null,
     upstream: null,
-    ahead: null,
-    behind: null,
+    url: null,
   }
 }
 
-export function initialRepositoryResult(repository: TaskRepository): RepositoryCommandResult {
+export function initialRepositoryResult(
+  repository: TaskRepository
+): RepositoryCommandResult {
   return {
+    actual: emptyActualState(),
+    error: null,
+    expected: expectedState(repository),
+    flags: [],
     name: repository.name,
     path: repository.path,
     result: RepositoryActionResult.NotRun,
     state: null,
-    flags: [],
-    expected: expectedState(repository),
-    actual: emptyActualState(),
-    error: null,
   }
 }

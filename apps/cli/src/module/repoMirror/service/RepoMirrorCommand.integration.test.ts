@@ -1,14 +1,25 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
+import { describe, it } from 'node:test'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
-import { describe, it } from 'node:test'
 
 const executeFile = promisify(execFile)
-const repositoryRoot = resolve(dirname(new URL(import.meta.url).pathname), '../../../../../..')
+const repositoryRoot = resolve(
+  dirname(new URL(import.meta.url).pathname),
+  '../../../../../..'
+)
 const cliEntry = resolve(repositoryRoot, 'apps/cli/src/index.ts')
 
 interface CommandResponse {
@@ -71,8 +82,8 @@ interface UninstallOutput {
   readonly warnings: readonly string[]
 }
 
-describe('gits repo-mirrors', () => {
-  it('creates, lists, fetches, updates, and resolves a mirror path', async () => {
+void describe('gits repo-mirrors', () => {
+  void it('creates, lists, fetches, updates, and resolves a mirror path', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'gits-mirror-crud-test-'))
     const gitsHome = resolve(root, 'gits-home')
     try {
@@ -92,7 +103,7 @@ describe('gits repo-mirrors', () => {
           '--yes',
           '--json',
         ],
-        gitsHome,
+        gitsHome
       )
       assert.equal(added.code, 0, added.stderr)
       const created = parseMirrors(added)
@@ -118,27 +129,41 @@ describe('gits repo-mirrors', () => {
           '--yes',
           '--json',
         ],
-        gitsHome,
+        gitsHome
       )
       assert.equal(fromTask.code, 0, fromTask.stderr)
       assert.equal(parseMirrors(fromTask).mirrors[0]?.action, 'unchanged')
 
       const repeated = await gits(
-        ['repo-mirrors', 'add', remoteUrl, '--schedule', 'off', '--yes', '--json'],
-        gitsHome,
+        [
+          'repo-mirrors',
+          'add',
+          remoteUrl,
+          '--schedule',
+          'off',
+          '--yes',
+          '--json',
+        ],
+        gitsHome
       )
       assert.equal(repeated.code, 0, repeated.stderr)
       assert.equal(parseMirrors(repeated).mirrors[0]?.action, 'unchanged')
 
       const updated = await gits(
         ['repo-mirrors', 'set', 'api', '--url', remote, '--json'],
-        gitsHome,
+        gitsHome
       )
       assert.equal(updated.code, 0, updated.stderr)
       assert.equal(parseMirrors(updated).mirrors[0]?.action, 'updated')
-      assert.deepEqual(parseMirrors(updated).mirrors[0]?.urls, [remote, remoteUrl])
+      assert.deepEqual(parseMirrors(updated).mirrors[0]?.urls, [
+        remote,
+        remoteUrl,
+      ])
 
-      const listed = await gits(['repo-mirrors', 'list', '--wide', '--json'], gitsHome)
+      const listed = await gits(
+        ['repo-mirrors', 'list', '--wide', '--json'],
+        gitsHome
+      )
       assert.equal(listed.code, 0, listed.stderr)
       assert.equal(parseMirrors(listed).mirrors[0]?.repositoryState, 'ready')
 
@@ -146,50 +171,84 @@ describe('gits repo-mirrors', () => {
       assert.equal(path.code, 0, path.stderr)
       assert.equal(path.stdout.trim(), created.mirrors[0]?.path)
 
-      const unknownPath = await gits(['repo-mirrors', 'path', 'missing'], gitsHome)
+      const unknownPath = await gits(
+        ['repo-mirrors', 'path', 'missing'],
+        gitsHome
+      )
       assert.equal(unknownPath.code, 2)
       assert.equal(unknownPath.stdout, '')
 
       const invalidRemoval = await gits(
-        ['repo-mirrors', 'remove', 'api', '--detach-dependents', '--force', '--yes', '--json'],
-        gitsHome,
+        [
+          'repo-mirrors',
+          'remove',
+          'api',
+          '--detach-dependents',
+          '--force',
+          '--yes',
+          '--json',
+        ],
+        gitsHome
       )
       assert.notEqual(invalidRemoval.code, 0)
       assert.match(
         `${invalidRemoval.stdout}\n${invalidRemoval.stderr}`,
-        /--force and --detach-dependents cannot be combined/u,
+        /--force and --detach-dependents cannot be combined/u
       )
 
-      const fetched = await gits(['repo-mirrors', 'fetch', 'api', '--json'], gitsHome)
+      const fetched = await gits(
+        ['repo-mirrors', 'fetch', 'api', '--json'],
+        gitsHome
+      )
       assert.equal(fetched.code, 0, fetched.stderr)
       assert.equal(parseMirrors(fetched).mirrors[0]?.action, 'fetched')
-      const logs = await gits(['repo-mirrors', 'logs', 'api', '--json'], gitsHome)
+      const logs = await gits(
+        ['repo-mirrors', 'logs', 'api', '--json'],
+        gitsHome
+      )
       assert.equal(logs.code, 0, logs.stderr)
       assert.match(logs.stdout, /git-command/u)
 
-      assert.equal(
-        (await git(['config', '--unset', 'gits.repoMirror.managed'], localMirrorPath)).code,
-        0,
+      const unsetManagedMarker = await git(
+        ['config', '--unset', 'gits.repoMirror.managed'],
+        localMirrorPath
       )
+      assert.equal(unsetManagedMarker.code, 0)
       const unmanagedRemoval = await gits(
-        ['repo-mirrors', 'remove', 'api', '--force', '--purge', '--yes', '--json'],
-        gitsHome,
+        [
+          'repo-mirrors',
+          'remove',
+          'api',
+          '--force',
+          '--purge',
+          '--yes',
+          '--json',
+        ],
+        gitsHome
       )
       assert.equal(unmanagedRemoval.code, 1)
-      assert.equal(parseMirrors(unmanagedRemoval).mirrors[0]?.error?.code, 'mirror-unmanaged-path')
+      assert.equal(
+        parseMirrors(unmanagedRemoval).mirrors[0]?.error?.code,
+        'mirror-unmanaged-path'
+      )
       await access(localMirrorPath)
 
-      const forcedUninstall = await gits(['uninstall', '--force', '--yes', '--json'], gitsHome)
+      const forcedUninstall = await gits(
+        ['uninstall', '--force', '--yes', '--json'],
+        gitsHome
+      )
       assert.equal(forcedUninstall.code, 0, forcedUninstall.stderr)
-      const forcedUninstallOutput = JSON.parse(forcedUninstall.stdout) as UninstallOutput
+      const forcedUninstallOutput = JSON.parse(
+        forcedUninstall.stdout
+      ) as UninstallOutput
       assert.deepEqual(forcedUninstallOutput.removedMirrors, ['api'])
-      await assert.rejects(() => access(gitsHome))
+      await assert.rejects(async () => access(gitsHome))
     } finally {
       await rm(root, { force: true, recursive: true })
     }
   })
 
-  it('uses alternates by default and protects, maintains, then safely detaches dependents', async () => {
+  void it('uses alternates by default and protects, maintains, then safely detaches dependents', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'gits-mirror-install-test-'))
     const gitsHome = resolve(root, 'gits-home')
     const task = resolve(root, 'task')
@@ -210,11 +269,11 @@ describe('gits repo-mirrors', () => {
           '--yes',
           '--json',
         ],
-        gitsHome,
+        gitsHome
       )
       assert.equal(added.code, 0, added.stderr)
       const mirrorPath = parseMirrors(added).mirrors[0]?.path
-      assert.ok(mirrorPath)
+      assert.ok(mirrorPath !== undefined)
 
       const installed = await gits(['-C', task, 'install', '--json'], gitsHome)
       assert.equal(installed.code, 0, installed.stderr)
@@ -225,41 +284,67 @@ describe('gits repo-mirrors', () => {
         path: mirrorPath,
       })
       const repository = resolve(task, 'repos/api')
-      const alternates = await readFile(resolve(repository, '.git/objects/info/alternates'), 'utf8')
+      const alternates = await readFile(
+        resolve(repository, '.git/objects/info/alternates'),
+        'utf-8'
+      )
       assert.match(alternates, /repo-mirrors\/api\.git\/objects/u)
       await access(resolve(repository, 'knowledge/guide.md'))
-      await assert.rejects(() => access(resolve(repository, 'other/application.txt')))
+      await assert.rejects(async () =>
+        access(resolve(repository, 'other/application.txt'))
+      )
 
-      const blocked = await gits(['repo-mirrors', 'remove', 'api', '--yes', '--json'], gitsHome)
+      const blocked = await gits(
+        ['repo-mirrors', 'remove', 'api', '--yes', '--json'],
+        gitsHome
+      )
       assert.equal(blocked.code, 1)
-      assert.equal(parseMirrors(blocked).mirrors[0]?.error?.code, 'mirror-has-dependents')
+      assert.equal(
+        parseMirrors(blocked).mirrors[0]?.error?.code,
+        'mirror-has-dependents'
+      )
 
       const maintenance = await gits(
         ['repo-mirrors', 'fetch', 'api', '--maintenance', '--json'],
-        gitsHome,
+        gitsHome
       )
       assert.equal(maintenance.code, 1)
-      assert.equal(parseMirrors(maintenance).mirrors[0]?.error?.code, 'mirror-has-dependents')
+      assert.equal(
+        parseMirrors(maintenance).mirrors[0]?.error?.code,
+        'mirror-has-dependents'
+      )
 
       const removed = await gits(
-        ['repo-mirrors', 'remove', 'api', '--detach-dependents', '--yes', '--json'],
-        gitsHome,
+        [
+          'repo-mirrors',
+          'remove',
+          'api',
+          '--detach-dependents',
+          '--yes',
+          '--json',
+        ],
+        gitsHome
       )
       assert.equal(removed.code, 0, removed.stderr)
       assert.equal(parseMirrors(removed).mirrors[0]?.action, 'removed')
-      await assert.rejects(() => access(resolve(repository, '.git/objects/info/alternates')))
-      assert.equal((await git(['fsck', '--full', '--no-dangling'], repository)).code, 0)
-      assert.equal((await git(['log', '-1', '--format=%s'], repository)).stdout.trim(), 'initial')
-      assert.ok(
-        (await readdir(resolve(gitsHome, 'trash'))).some((entry) => entry.endsWith('-api.git')),
+      await assert.rejects(async () =>
+        access(resolve(repository, '.git/objects/info/alternates'))
       )
+      const fsck = await git(['fsck', '--full', '--no-dangling'], repository)
+      const log = await git(['log', '-1', '--format=%s'], repository)
+      const trashEntries = await readdir(resolve(gitsHome, 'trash'))
+      assert.equal(fsck.code, 0)
+      assert.equal(log.stdout.trim(), 'initial')
+      assert.ok(trashEntries.some((entry) => entry.endsWith('-api.git')))
     } finally {
       await rm(root, { force: true, recursive: true })
     }
   })
 
-  it('dissociates only when task.config.jsonc explicitly requests it', async () => {
-    const root = await mkdtemp(resolve(tmpdir(), 'gits-mirror-dissociate-test-'))
+  void it('dissociates only when task.config.jsonc explicitly requests it', async () => {
+    const root = await mkdtemp(
+      resolve(tmpdir(), 'gits-mirror-dissociate-test-')
+    )
     const gitsHome = resolve(root, 'gits-home')
     const task = resolve(root, 'task')
     try {
@@ -279,23 +364,28 @@ describe('gits repo-mirrors', () => {
           '--yes',
           '--json',
         ],
-        gitsHome,
+        gitsHome
       )
 
       const installed = await gits(['-C', task, 'install', '--json'], gitsHome)
       assert.equal(installed.code, 0, installed.stderr)
       const output = JSON.parse(installed.stdout) as InstallOutput
       assert.equal(output.repos[0]?.mirror?.dissociated, true)
-      await assert.rejects(() => access(resolve(task, 'repos/api/.git/objects/info/alternates')))
+      await assert.rejects(async () =>
+        access(resolve(task, 'repos/api/.git/objects/info/alternates'))
+      )
 
-      const removed = await gits(['repo-mirrors', 'remove', 'api', '--yes', '--json'], gitsHome)
+      const removed = await gits(
+        ['repo-mirrors', 'remove', 'api', '--yes', '--json'],
+        gitsHome
+      )
       assert.equal(removed.code, 0, removed.stderr)
     } finally {
       await rm(root, { force: true, recursive: true })
     }
   })
 
-  it('supports an explicit forced removal while reporting impacted repositories', async () => {
+  void it('supports an explicit forced removal while reporting impacted repositories', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'gits-mirror-force-test-'))
     const gitsHome = resolve(root, 'gits-home')
     const task = resolve(root, 'task')
@@ -316,16 +406,16 @@ describe('gits repo-mirrors', () => {
           '--yes',
           '--json',
         ],
-        gitsHome,
+        gitsHome
       )
       await gits(['-C', task, 'install', '--json'], gitsHome)
 
       const removed = await gits(
         ['repo-mirrors', 'remove', 'api', '--force', '--yes', '--json'],
-        gitsHome,
+        gitsHome
       )
       assert.equal(removed.code, 0, removed.stderr)
-      const result = parseMirrors(removed).mirrors[0]
+      const [result] = parseMirrors(removed).mirrors
       assert.equal(result?.forced, true)
       assert.deepEqual(result?.dependents, [resolve(task, 'repos/api')])
       await access(resolve(task, 'repos/api/.git/objects/info/alternates'))
@@ -334,7 +424,7 @@ describe('gits repo-mirrors', () => {
     }
   })
 
-  it('previews and safely uninstalls all registered machine data', async () => {
+  void it('previews and safely uninstalls all registered machine data', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'gits-uninstall-test-'))
     const gitsHome = resolve(root, 'gits-home')
     const task = resolve(root, 'task')
@@ -355,7 +445,7 @@ describe('gits repo-mirrors', () => {
           '--yes',
           '--json',
         ],
-        gitsHome,
+        gitsHome
       )
       await gits(['-C', task, 'install', '--json'], gitsHome)
 
@@ -364,8 +454,12 @@ describe('gits repo-mirrors', () => {
       const previewOutput = JSON.parse(preview.stdout) as UninstallOutput
       assert.equal(previewOutput.dryRun, true)
       assert.equal(previewOutput.mirrors[0]?.name, 'api')
-      assert.deepEqual(previewOutput.mirrors[0]?.dependents, [resolve(task, 'repos/api')])
-      assert.ok(previewOutput.targets.some((target) => target.id === 'gits-home'))
+      assert.deepEqual(previewOutput.mirrors[0]?.dependents, [
+        resolve(task, 'repos/api'),
+      ])
+      assert.ok(
+        previewOutput.targets.some((target) => target.id === 'gits-home')
+      )
       await access(gitsHome)
 
       const blocked = await gits(['uninstall', '--yes', '--json'], gitsHome)
@@ -375,56 +469,80 @@ describe('gits repo-mirrors', () => {
 
       const uninstalled = await gits(
         ['uninstall', '--detach-dependents', '--yes', '--json'],
-        gitsHome,
+        gitsHome
       )
       assert.equal(uninstalled.code, 0, uninstalled.stderr)
       const uninstallOutput = JSON.parse(uninstalled.stdout) as UninstallOutput
       assert.equal(uninstallOutput.ok, true)
       assert.deepEqual(uninstallOutput.removedMirrors, ['api'])
       assert.ok(uninstallOutput.removedPaths.includes(gitsHome))
-      await assert.rejects(() => access(gitsHome))
+      await assert.rejects(async () => access(gitsHome))
 
       const repository = resolve(task, 'repos/api')
-      await assert.rejects(() => access(resolve(repository, '.git/objects/info/alternates')))
-      assert.equal((await git(['fsck', '--full', '--no-dangling'], repository)).code, 0)
+      await assert.rejects(async () =>
+        access(resolve(repository, '.git/objects/info/alternates'))
+      )
+      const fsck = await git(['fsck', '--full', '--no-dangling'], repository)
+      assert.equal(fsck.code, 0)
     } finally {
       await rm(root, { force: true, recursive: true })
     }
   })
 
-  it('requires force before uninstalling an owned data root with invalid configuration', async () => {
-    const root = await mkdtemp(resolve(tmpdir(), 'gits-uninstall-invalid-config-test-'))
+  void it('requires force before uninstalling an owned data root with invalid configuration', async () => {
+    const root = await mkdtemp(
+      resolve(tmpdir(), 'gits-uninstall-invalid-config-test-')
+    )
     const gitsHome = resolve(root, 'gits-home')
     try {
       await mkdir(resolve(gitsHome, 'logs'), { recursive: true })
       await writeFile(
         resolve(gitsHome, 'installation-id'),
-        '00000000-0000-4000-8000-000000000001\n',
+        '00000000-0000-4000-8000-000000000001\n'
       )
-      await writeFile(resolve(gitsHome, 'config.jsonc'), '{ this is not valid JSONC')
+      await writeFile(
+        resolve(gitsHome, 'config.jsonc'),
+        '{ this is not valid JSONC'
+      )
 
       const refused = await gits(['uninstall', '--yes', '--json'], gitsHome)
       assert.equal(refused.code, 2)
       await access(gitsHome)
 
-      const forced = await gits(['uninstall', '--force', '--yes', '--json'], gitsHome)
+      const forced = await gits(
+        ['uninstall', '--force', '--yes', '--json'],
+        gitsHome
+      )
       assert.equal(forced.code, 0, forced.stderr)
       const output = JSON.parse(forced.stdout) as UninstallOutput
-      assert.ok(output.warnings.some((warning) => warning.includes('could not be read')))
-      await assert.rejects(() => access(gitsHome))
+      assert.ok(
+        output.warnings.some((warning) => warning.includes('could not be read'))
+      )
+      await assert.rejects(async () => access(gitsHome))
     } finally {
       await rm(root, { force: true, recursive: true })
     }
   })
 })
 
-async function gits(args: readonly string[], gitsHome: string): Promise<CommandResponse> {
-  return run(process.execPath, ['--import=tsx', cliEntry, ...args], repositoryRoot, {
-    GITS_HOME: gitsHome,
-  })
+async function gits(
+  args: readonly string[],
+  gitsHome: string
+): Promise<CommandResponse> {
+  return run(
+    process.execPath,
+    ['--import=tsx', cliEntry, ...args],
+    repositoryRoot,
+    {
+      GITS_HOME: gitsHome,
+    }
+  )
 }
 
-async function git(args: readonly string[], cwd: string): Promise<CommandResponse> {
+async function git(
+  args: readonly string[],
+  cwd: string
+): Promise<CommandResponse> {
   return run('git', args, cwd)
 }
 
@@ -432,15 +550,19 @@ async function run(
   command: string,
   args: readonly string[],
   cwd: string,
-  environment: NodeJS.ProcessEnv = {},
+  environment: NodeJS.ProcessEnv = {}
 ): Promise<CommandResponse> {
   try {
     const response = await executeFile(command, args, {
       cwd,
-      encoding: 'utf8',
+      encoding: 'utf-8',
       env: { ...process.env, ...environment },
     })
-    return { code: 0, stderr: String(response.stderr), stdout: String(response.stdout) }
+    return {
+      code: 0,
+      stderr: response.stderr,
+      stdout: response.stdout,
+    }
   } catch (error) {
     const failure = error as CommandFailure
     return {
@@ -475,7 +597,7 @@ async function writeTaskConfiguration(
   task: string,
   remote: string,
   dissociate: boolean,
-  checkout?: readonly string[],
+  checkout?: readonly string[]
 ): Promise<void> {
   const config = {
     repos: {
@@ -488,7 +610,10 @@ async function writeTaskConfiguration(
       },
     },
   }
-  await writeFile(resolve(task, 'task.config.jsonc'), `${JSON.stringify(config, null, 2)}\n`)
+  await writeFile(
+    resolve(task, 'task.config.jsonc'),
+    `${JSON.stringify(config, null, 2)}\n`
+  )
 }
 
 function parseMirrors(response: CommandResponse): MirrorOutput {

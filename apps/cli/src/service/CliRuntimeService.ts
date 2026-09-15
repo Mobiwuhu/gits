@@ -4,20 +4,28 @@ import { Inject } from '@wendellhu/redi'
 import type { CliContext, ICliRuntimeService } from '../contract/index'
 
 export class CliRuntimeService implements ICliRuntimeService {
-  constructor(@Inject(ITaskRootService) private readonly taskRootService: ITaskRootService) {}
+  constructor(
+    @Inject(ITaskRootService) private readonly taskRootService: ITaskRootService
+  ) {}
 
-  commandRoot(context: CliContext): Promise<string> {
+  async commandRoot(context: CliContext): Promise<string> {
     return this.taskRootService.resolveWorkingDirectory(context.globals.cwd)
   }
 
   async taskRoot(context: CliContext): Promise<string> {
-    const workingDirectory = await this.taskRootService.resolveWorkingDirectory(context.globals.cwd)
+    const workingDirectory = await this.taskRootService.resolveWorkingDirectory(
+      context.globals.cwd
+    )
     return this.taskRootService.findTaskRoot(workingDirectory)
   }
 
   parseJobs(value: string | undefined): number | undefined {
-    if (value === undefined) return undefined
-    if (!/^\d+$/u.test(value)) throw new UsageError('--jobs must be a positive integer.')
+    if (value === undefined) {
+      return undefined
+    }
+    if (!/^\d+$/u.test(value)) {
+      throw new UsageError('--jobs must be a positive integer.')
+    }
 
     const jobs = Number(value)
     if (!Number.isSafeInteger(jobs) || jobs < 1) {
@@ -26,9 +34,13 @@ export class CliRuntimeService implements ICliRuntimeService {
     return jobs
   }
 
-  async runInterruptibly<T>(action: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  async runInterruptibly<T>(
+    action: (signal: AbortSignal) => Promise<T>
+  ): Promise<T> {
     const controller = new AbortController()
-    const interrupt = (): void => controller.abort()
+    const interrupt = (): void => {
+      controller.abort()
+    }
     process.once('SIGINT', interrupt)
 
     try {

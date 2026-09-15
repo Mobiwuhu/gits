@@ -5,7 +5,11 @@ export class ConfigurationError extends GitsError {
   readonly issues: readonly string[]
 
   constructor(message: string, issues: readonly string[] = []) {
-    super('config-invalid', issues.length > 0 ? `${message} ${issues.join(' ')}` : message, 2)
+    super(
+      'config-invalid',
+      issues.length > 0 ? `${message} ${issues.join(' ')}` : message,
+      2
+    )
     this.name = 'ConfigurationError'
     this.issues = issues
   }
@@ -20,7 +24,7 @@ export class IncompleteConfigurationError extends GitsError {
       `Configuration contains placeholder values for: ${repositories
         .map((repository) => repository.name)
         .join(', ')}`,
-      2,
+      2
     )
     this.name = 'IncompleteConfigurationError'
     this.repositories = repositories

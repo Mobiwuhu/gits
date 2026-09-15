@@ -15,7 +15,9 @@ const protocolPattern = /^[a-z][a-z\d+.-]*:\/\//iu
 
 export function normalizeGitUrl(value: string): GitUrlIdentity | null {
   const input = value.trim()
-  if (input.length === 0) return null
+  if (input.length === 0) {
+    return null
+  }
 
   if (protocolPattern.test(input)) {
     try {
@@ -23,7 +25,7 @@ export function normalizeGitUrl(value: string): GitUrlIdentity | null {
       const host = normalizeHost(
         parsed.protocol === 'file:'
           ? parsed.hostname || 'file'
-          : withPort(parsed.hostname, parsed.port, parsed.protocol),
+          : withPort(parsed.hostname, parsed.port, parsed.protocol)
       )
       const path = normalizePath(parsed.pathname)
       return host !== null && path !== null ? { host, path } : null
@@ -33,14 +35,19 @@ export function normalizeGitUrl(value: string): GitUrlIdentity | null {
   }
 
   const scpStyle = scpStylePattern.exec(input)
-  if (scpStyle?.groups === undefined) return null
+  if (scpStyle?.groups === undefined) {
+    return null
+  }
 
   const host = normalizeHost(scpStyle.groups.host)
   const path = normalizePath(scpStyle.groups.path)
   return host !== null && path !== null ? { host, path } : null
 }
 
-export function compareGitUrls(expectedValue: string, actualValue: string): GitUrlComparison {
+export function compareGitUrls(
+  expectedValue: string,
+  actualValue: string
+): GitUrlComparison {
   const expected = normalizeGitUrl(expectedValue)
   const actual = normalizeGitUrl(actualValue)
   const isSameRepository =
@@ -53,7 +60,8 @@ export function compareGitUrls(expectedValue: string, actualValue: string): GitU
     actual,
     expected,
     isSameRepository,
-    isTransportDifferent: isSameRepository && expectedValue.trim() !== actualValue.trim(),
+    isTransportDifferent:
+      isSameRepository && expectedValue.trim() !== actualValue.trim(),
   }
 }
 
@@ -67,15 +75,19 @@ function normalizeHost(value: string | undefined): string | null {
 }
 
 function normalizePath(value: string | undefined): string | null {
-  let path = value?.trim().replace(/^\/+|\/+$/gu, '')
-  if (path === undefined || path.length === 0) return null
+  let path = value?.trim().replaceAll(/^\/+|\/+$/gu, '')
+  if (path === undefined || path.length === 0) {
+    return null
+  }
 
   path = path.replace(/\.git$/iu, '').replace(/\/+$/u, '')
   return path.length === 0 ? null : path
 }
 
 function withPort(hostname: string, port: string, protocol: string): string {
-  if (port.length === 0 || isDefaultPort(port, protocol)) return hostname
+  if (port.length === 0 || isDefaultPort(port, protocol)) {
+    return hostname
+  }
   return `${hostname}:${port}`
 }
 

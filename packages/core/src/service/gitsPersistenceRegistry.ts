@@ -4,7 +4,9 @@ import { GitsPersistenceTargetKind } from '../contract/index'
 
 export interface GitsHomePersistenceEntry {
   readonly description: string
-  readonly kind: GitsPersistenceTargetKind.Directory | GitsPersistenceTargetKind.File
+  readonly kind:
+    | GitsPersistenceTargetKind.Directory
+    | GitsPersistenceTargetKind.File
   readonly relativePath: string
 }
 
@@ -29,8 +31,8 @@ export const gitsPersistenceRootRegistry = {
 } as const
 
 /**
- * The single source of truth for every machine-level path owned below GITS_HOME.
- * New persistent features must register their path here before writing to disk.
+ * GITS_HOME 下所有机器级持久化路径的唯一事实来源。
+ * 新增持久化能力必须先在此注册路径，再写入磁盘。
  */
 export const gitsHomePersistenceRegistry: GitsHomePersistenceEntries = {
   bin: {
@@ -63,15 +65,15 @@ export const gitsHomePersistenceRegistry: GitsHomePersistenceEntries = {
     kind: GitsPersistenceTargetKind.Directory,
     relativePath: 'logs/repo-mirrors',
   },
-  mirrors: {
-    description: 'Machine-local bare Git mirrors',
-    kind: GitsPersistenceTargetKind.Directory,
-    relativePath: 'repo-mirrors',
-  },
   mirrorState: {
     description: 'Latest repo mirror run state',
     kind: GitsPersistenceTargetKind.Directory,
     relativePath: 'state/repo-mirrors',
+  },
+  mirrors: {
+    description: 'Machine-local bare Git mirrors',
+    kind: GitsPersistenceTargetKind.Directory,
+    relativePath: 'repo-mirrors',
   },
   operations: {
     description: 'Recoverable operation state',
@@ -97,6 +99,21 @@ export const gitsHomePersistenceRegistry: GitsHomePersistenceEntries = {
 
 export type GitsHomePersistenceKey = keyof GitsHomePersistenceEntries
 
+export const gitsHomePersistenceKeys: readonly GitsHomePersistenceKey[] = [
+  'bin',
+  'config',
+  'dependencyState',
+  'installationId',
+  'locks',
+  'logs',
+  'mirrors',
+  'mirrorState',
+  'operations',
+  'state',
+  'temporary',
+  'trash',
+]
+
 export interface GitsExternalPersistenceRegistry {
   readonly launchdRepoMirrorJobs: {
     readonly description: string
@@ -115,23 +132,24 @@ export interface GitsExternalPersistenceRegistry {
   }
 }
 
-export const gitsExternalPersistenceRegistry: GitsExternalPersistenceRegistry = {
-  launchdRepoMirrorJobs: {
-    description: 'macOS user LaunchAgent projections',
-    directorySegments: ['Library', 'LaunchAgents'],
-    filePrefix: 'io.gits.repo-mirror.',
-    fileSuffix: '.plist',
-    kind: GitsPersistenceTargetKind.File,
-  },
-  systemdRepoMirrorJobs: {
-    description: 'Linux systemd user service and timer projections',
-    directorySegments: ['systemd', 'user'],
-    enablementDirectoryName: 'timers.target.wants',
-    filePrefix: 'gits-repo-mirror-',
-    fileSuffixes: ['.service', '.timer'],
-    kind: GitsPersistenceTargetKind.File,
-  },
-}
+export const gitsExternalPersistenceRegistry: GitsExternalPersistenceRegistry =
+  {
+    launchdRepoMirrorJobs: {
+      description: 'macOS user LaunchAgent projections',
+      directorySegments: ['Library', 'LaunchAgents'],
+      filePrefix: 'io.gits.repo-mirror.',
+      fileSuffix: '.plist',
+      kind: GitsPersistenceTargetKind.File,
+    },
+    systemdRepoMirrorJobs: {
+      description: 'Linux systemd user service and timer projections',
+      directorySegments: ['systemd', 'user'],
+      enablementDirectoryName: 'timers.target.wants',
+      filePrefix: 'gits-repo-mirror-',
+      fileSuffixes: ['.service', '.timer'],
+      kind: GitsPersistenceTargetKind.File,
+    },
+  }
 
 export interface GitsManagedArtifactRegistry {
   readonly stableSchedulerRunner: {
@@ -149,45 +167,53 @@ export const gitsManagedArtifactRegistry: GitsManagedArtifactRegistry = {
   },
 }
 
-export function resolveRegisteredGitsHomePath(home: string, key: GitsHomePersistenceKey): string {
+export function resolveRegisteredGitsHomePath(
+  home: string,
+  key: GitsHomePersistenceKey
+): string {
   return resolve(home, gitsHomePersistenceRegistry[key].relativePath)
 }
 
 export function resolveLaunchdProjectionDirectory(userHome: string): string {
   return resolve(
     userHome,
-    ...gitsExternalPersistenceRegistry.launchdRepoMirrorJobs.directorySegments,
+    ...gitsExternalPersistenceRegistry.launchdRepoMirrorJobs.directorySegments
   )
 }
 
 export function resolveSystemdUserUnitDirectory(
   environment: NodeJS.ProcessEnv,
-  userHome: string,
+  userHome: string
 ): string {
   const configured = environment.XDG_CONFIG_HOME
   if (configured !== undefined && !isAbsolute(configured)) {
-    throw new Error('XDG_CONFIG_HOME must be an absolute path for native scheduling.')
+    throw new Error(
+      'XDG_CONFIG_HOME must be an absolute path for native scheduling.'
+    )
   }
   return resolve(
     configured ?? resolve(userHome, '.config'),
-    ...gitsExternalPersistenceRegistry.systemdRepoMirrorJobs.directorySegments,
+    ...gitsExternalPersistenceRegistry.systemdRepoMirrorJobs.directorySegments
   )
 }
 
 export function resolveSystemdTimerEnablementDirectory(
   environment: NodeJS.ProcessEnv,
-  userHome: string,
+  userHome: string
 ): string {
   return resolve(
     resolveSystemdUserUnitDirectory(environment, userHome),
-    gitsExternalPersistenceRegistry.systemdRepoMirrorJobs.enablementDirectoryName,
+    gitsExternalPersistenceRegistry.systemdRepoMirrorJobs
+      .enablementDirectoryName
   )
 }
 
 export function registeredTopLevelNames(): ReadonlySet<string> {
   return new Set(
-    Object.values(gitsHomePersistenceRegistry).map(
-      (entry) => entry.relativePath.split('/')[0] ?? entry.relativePath,
-    ),
+    gitsHomePersistenceKeys.map(
+      (key) =>
+        gitsHomePersistenceRegistry[key].relativePath.split('/')[0] ??
+        gitsHomePersistenceRegistry[key].relativePath
+    )
   )
 }

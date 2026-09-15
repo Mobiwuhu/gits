@@ -2,17 +2,18 @@ import { IListRepoMirrorService } from '@gits/core'
 import { Inject } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 
-import {
-  ICliOutputService,
-  type CliContext,
-  type CliInstance,
-  type IRepoMirrorSubcommand,
+import { ICliOutputService } from '../../../contract/index'
+import type {
+  CliContext,
+  CliInstance,
+  IRepoMirrorSubcommand,
 } from '../../../contract/index'
 
 export class ListRepoMirrorCommand implements IRepoMirrorSubcommand {
   constructor(
-    @Inject(IListRepoMirrorService) private readonly service: IListRepoMirrorService,
-    @Inject(ICliOutputService) private readonly output: ICliOutputService,
+    @Inject(IListRepoMirrorService)
+    private readonly service: IListRepoMirrorService,
+    @Inject(ICliOutputService) private readonly output: ICliOutputService
   ) {}
 
   register(cli: CliInstance): void {
@@ -37,10 +38,10 @@ export class ListRepoMirrorCommand implements IRepoMirrorSubcommand {
                 includeSize: context.options.wide,
                 names: context.args.names,
               }),
-            { wide: context.options.wide },
+            { wide: context.options.wide }
           )
         },
-      }),
+      })
     )
   }
 }

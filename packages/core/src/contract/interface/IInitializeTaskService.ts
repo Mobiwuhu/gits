@@ -1,4 +1,5 @@
-import { createIdentifier, type IdentifierDecorator } from '@wendellhu/redi'
+import { createIdentifier } from '@wendellhu/redi'
+import type { IdentifierDecorator } from '@wendellhu/redi'
 
 import type { CommandOutput, InitializeTaskInput } from '../types/index'
 

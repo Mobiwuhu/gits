@@ -1,2 +1,2 @@
-export * from './cliContext'
-export * from './cliPresentation'
+export type * from './cliContext'
+export type * from './cliPresentation'

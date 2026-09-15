@@ -4,11 +4,24 @@
 
 `task.config.jsonc` 只保存稳定意图：仓库身份、任务分支、首次创建分支时使用的远程基线，以及可选的工作区目录范围。当前分支、工作区改动、upstream、实际 sparse-checkout 和提交状态始终以原生 Git 为事实来源。
 
-仓库采用私有 `packages/core` + `apps/cli` 的模块化单体结构。Core 保存业务 Service，CLI 只负责 Incur 参数、交互和输出；全部 Command 通过 ReDI 构造器注入并显式注册，不扫描文件路由。
+仓库采用 `packages/core` + `apps/cli` 的模块化单体结构。Core 保存业务 Service，CLI 只负责 Incur 参数、交互和输出；全部 Command 通过 ReDI 构造器注入并显式注册，不扫描文件路由。两个 workspace 分别以 `@gits/core` 和 `@gits/cli` 公开发布，并始终使用相同版本号；安装 CLI 后的命令名仍是 `gits`。
+
+## 安装
+
+```sh
+pnpm add --global @gits/cli
+gits --help
+```
+
+如果只需要复用底层 Service 和 Contract：
+
+```sh
+pnpm add @gits/core
+```
 
 ## 环境要求
 
-- Node.js 22.17.1 或更高版本
+- Node.js 22.18.0 或更高版本（发布包运行时最低支持 22.17.1）
 - pnpm 9.15.9 或更高版本
 - 已安装 Git，且 `git` 可从 `PATH` 找到
 
@@ -29,6 +42,16 @@ pnpm start -- --help
 ```
 
 `pnpm build` 使用 tsdown/Rolldown 将 Core 和 CLI 构建为 Node.js ESM；`tsc` 只负责 `--noEmit` 类型检查，不参与生成运行产物。
+
+提交前可运行与 CI 相同的完整检查：
+
+```sh
+pnpm check
+```
+
+Ultracite 同时驱动 Oxlint 和 Oxfmt，Oxlint 已开启 TypeScript 类型感知。Lefthook 会在 `pre-commit` 执行同一套 lint，并在 `commit-msg` 使用 Commitlint 校验 Conventional Commits。依赖安装时会自动注册这些 Git hooks。
+
+发布由 Relizy 的 unified 模式管理，根包、`@gits/cli` 和 `@gits/core` 会一起升级到同一版本。维护者流程与 npm/GitHub 的一次性配置见 [`docs/releasing.md`](docs/releasing.md)。
 
 完成首次构建后，可以直接运行 CLI 的 TypeScript 源码：
 

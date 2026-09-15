@@ -2,6 +2,16 @@ import { stat } from 'node:fs/promises'
 
 import { Inject } from '@wendellhu/redi'
 
+import {
+  emptyActualState,
+  expectedState,
+  GitBranchPreparationKind,
+  GitStdioMode,
+  RepositoryActionResult,
+  RepositoryFlag,
+  RepositoryState,
+  IGitCommandService,
+} from '../contract/index'
 import type {
   GitBranchPreparation,
   GitBranchPreparationOptions,
@@ -13,7 +23,14 @@ import type {
   GitPushOptions,
   GitReferenceLookup,
   GitStashResult,
+  ActualRepositoryState,
+  CommandError,
+  RepositoryCommandResult,
+  TaskRepository,
+  IGitService,
 } from '../contract/index'
+import { compareGitUrls } from './gitUrl'
+
 export type {
   GitBranchPreparation,
   GitBranchPreparationOptions,
@@ -25,52 +42,56 @@ export type {
   GitReferenceLookup,
   GitStashResult,
 } from '../contract/index'
-import {
-  emptyActualState,
-  expectedState,
-  GitBranchPreparationKind,
-  GitStdioMode,
-  RepositoryActionResult,
-  RepositoryFlag,
-  RepositoryState,
-  type ActualRepositoryState,
-  type CommandError,
-  type RepositoryCommandResult,
-  type TaskRepository,
-} from '../contract/index'
-import { IGitCommandService, type IGitService } from '../contract/index'
-import { compareGitUrls } from './gitUrl'
+
+enum PathState {
+  Directory = 'directory',
+  Missing = 'missing',
+  NotDirectory = 'not-directory',
+  Unavailable = 'unavailable',
+}
 
 export class GitService implements IGitService {
-  constructor(@Inject(IGitCommandService) private readonly runner: IGitCommandService) {}
+  constructor(
+    @Inject(IGitCommandService) private readonly runner: IGitCommandService
+  ) {}
 
   async applyCheckout(
     path: string,
     checkout: readonly string[] | null,
-    options: GitOperationOptions = {},
+    options: GitOperationOptions = {}
   ): Promise<GitCommandResult> {
     return checkout === null
       ? this.runAction(path, ['sparse-checkout', 'disable'], options)
       : this.runAction(
           path,
-          ['sparse-checkout', 'set', '--cone', '--no-sparse-index', '--', ...checkout],
-          options,
+          [
+            'sparse-checkout',
+            'set',
+            '--cone',
+            '--no-sparse-index',
+            '--',
+            ...checkout,
+          ],
+          options
         )
   }
 
   async checkRefFormat(
     branch: string,
-    options: GitOperationOptions = {},
+    options: GitOperationOptions = {}
   ): Promise<GitCommandResult> {
-    return this.runOutsideRepository(['check-ref-format', '--branch', branch], options)
+    return this.runOutsideRepository(
+      ['check-ref-format', '--branch', branch],
+      options
+    )
   }
 
   async clone(
     url: string,
     destination: string,
-    options: GitCloneOptions = {},
+    options: GitCloneOptions = {}
   ): Promise<GitCommandResult> {
-    const reference = options.reference
+    const { reference } = options
     return this.runOutsideRepository(
       [
         'clone',
@@ -88,41 +109,54 @@ export class GitService implements IGitService {
         url,
         destination,
       ],
-      options,
+      options
     )
   }
 
-  async fetch(path: string, options: GitOperationOptions = {}): Promise<GitCommandResult> {
+  async fetch(
+    path: string,
+    options: GitOperationOptions = {}
+  ): Promise<GitCommandResult> {
     return this.runAction(path, ['fetch', 'origin', '--prune'], options)
   }
 
   async getRemoteUrl(
     path: string,
     remote = 'origin',
-    options: GitOperationOptions = {},
+    options: GitOperationOptions = {}
   ): Promise<string | null> {
-    const result = await this.runRead(path, ['remote', 'get-url', remote], options)
+    const result = await this.runRead(
+      path,
+      ['remote', 'get-url', remote],
+      options
+    )
     return isSuccessful(result) ? nonEmptyTrimmed(result.stdout) : null
   }
 
   async hasRef(
     path: string,
     fullRef: string,
-    options: GitOperationOptions = {},
+    options: GitOperationOptions = {}
   ): Promise<GitReferenceLookup> {
-    const command = await this.runRead(path, ['show-ref', '--verify', '--quiet', fullRef], options)
+    const command = await this.runRead(
+      path,
+      ['show-ref', '--verify', '--quiet', fullRef],
+      options
+    )
     return { command, exists: isSuccessful(command) }
   }
 
   async inspect(
     repository: TaskRepository,
-    options: GitOperationOptions = {},
+    options: GitOperationOptions = {}
   ): Promise<RepositoryCommandResult> {
     const pathState = await inspectPath(repository.absolutePath)
-    if (pathState === PathState.Missing)
+    if (pathState === PathState.Missing) {
       return repositoryResult(repository, RepositoryState.Missing)
-    if (pathState === PathState.NotDirectory)
+    }
+    if (pathState === PathState.NotDirectory) {
       return repositoryResult(repository, RepositoryState.NotGit)
+    }
     if (pathState === PathState.Unavailable) {
       return repositoryFailure(repository, {
         code: 'repository-unavailable',
@@ -134,9 +168,11 @@ export class GitService implements IGitService {
       const worktree = await this.runRead(
         repository.absolutePath,
         ['rev-parse', '--is-inside-work-tree'],
-        options,
+        options
       )
-      if (worktree.aborted) return repositoryFailure(repository, toCommandError(worktree))
+      if (worktree.aborted) {
+        return repositoryFailure(repository, toCommandError(worktree))
+      }
       if (!isSuccessful(worktree) || worktree.stdout.trim() !== 'true') {
         return repositoryResult(repository, RepositoryState.NotGit)
       }
@@ -144,12 +180,18 @@ export class GitService implements IGitService {
       const status = await this.runRead(
         repository.absolutePath,
         ['status', '--porcelain=v2', '--branch', '--untracked-files=normal'],
-        options,
+        options
       )
-      if (!isSuccessful(status)) return repositoryFailure(repository, toCommandError(status))
+      if (!isSuccessful(status)) {
+        return repositoryFailure(repository, toCommandError(status))
+      }
 
       const facts = parseStatus(status.stdout)
-      const actualUrl = await this.getRemoteUrl(repository.absolutePath, 'origin', options)
+      const actualUrl = await this.getRemoteUrl(
+        repository.absolutePath,
+        'origin',
+        options
+      )
       const checkout = await this.readCheckout(repository.absolutePath, options)
       if (checkout.error !== null) {
         return repositoryFailure(repository, toCommandError(checkout.error))
@@ -162,52 +204,108 @@ export class GitService implements IGitService {
         upstream: facts.upstream,
         url: actualUrl,
       }
-      const comparison = actualUrl === null ? null : compareGitUrls(repository.url, actualUrl)
+      const comparison =
+        actualUrl === null ? null : compareGitUrls(repository.url, actualUrl)
       const flags = repositoryFlags(
-        checkout.isCone === false || !sameCheckout(repository.checkout, checkout.paths),
+        checkout.isCone === false ||
+          !sameCheckout(repository.checkout, checkout.paths),
         facts.dirty,
-        comparison?.isTransportDifferent ?? false,
+        comparison?.isTransportDifferent ?? false
       )
 
       if (comparison === null || !comparison.isSameRepository) {
-        return repositoryResult(repository, RepositoryState.WrongRepo, actual, flags)
+        return repositoryResult(
+          repository,
+          RepositoryState.WrongRepo,
+          actual,
+          flags
+        )
       }
-      if (facts.branch === null)
-        return repositoryResult(repository, RepositoryState.Detached, actual, flags)
-      if (facts.branch !== repository.branch)
-        return repositoryResult(repository, RepositoryState.WrongBranch, actual, flags)
-      if (facts.upstream === null)
-        return repositoryResult(repository, RepositoryState.LocalOnly, actual, flags)
+      if (facts.branch === null) {
+        return repositoryResult(
+          repository,
+          RepositoryState.Detached,
+          actual,
+          flags
+        )
+      }
+      if (facts.branch !== repository.branch) {
+        return repositoryResult(
+          repository,
+          RepositoryState.WrongBranch,
+          actual,
+          flags
+        )
+      }
+      if (facts.upstream === null) {
+        return repositoryResult(
+          repository,
+          RepositoryState.LocalOnly,
+          actual,
+          flags
+        )
+      }
 
       const remoteRef = remoteTrackingRef(facts.upstream)
-      if (remoteRef === null)
-        return repositoryResult(repository, RepositoryState.WrongUpstream, actual, flags)
+      if (remoteRef === null) {
+        return repositoryResult(
+          repository,
+          RepositoryState.WrongUpstream,
+          actual,
+          flags
+        )
+      }
 
-      const upstreamReference = await this.hasRef(repository.absolutePath, remoteRef, options)
-      if (upstreamReference.command.exitCode !== 0 && upstreamReference.command.exitCode !== 1) {
+      const upstreamReference = await this.hasRef(
+        repository.absolutePath,
+        remoteRef,
+        options
+      )
+      if (
+        upstreamReference.command.exitCode !== 0 &&
+        upstreamReference.command.exitCode !== 1
+      ) {
         return repositoryFailure(
           repository,
           toCommandError(upstreamReference.command),
           actual,
-          flags,
+          flags
         )
       }
-      if (!upstreamReference.exists)
-        return repositoryResult(repository, RepositoryState.UpstreamGone, actual, flags)
+      if (!upstreamReference.exists) {
+        return repositoryResult(
+          repository,
+          RepositoryState.UpstreamGone,
+          actual,
+          flags
+        )
+      }
       if (facts.upstream !== `origin/${repository.branch}`) {
-        return repositoryResult(repository, RepositoryState.WrongUpstream, actual, flags)
+        return repositoryResult(
+          repository,
+          RepositoryState.WrongUpstream,
+          actual,
+          flags
+        )
       }
 
       const aheadBehind =
         facts.ahead === null || facts.behind === null
-          ? await this.readAheadBehind(repository.absolutePath, facts.upstream, options)
+          ? await this.readAheadBehind(
+              repository.absolutePath,
+              facts.upstream,
+              options
+            )
           : { ahead: facts.ahead, behind: facts.behind }
       if (aheadBehind.ahead === null || aheadBehind.behind === null) {
         return repositoryFailure(
           repository,
-          { code: 'git-status-unavailable', message: 'Unable to determine ahead/behind state.' },
+          {
+            code: 'git-status-unavailable',
+            message: 'Unable to determine ahead/behind state.',
+          },
           actual,
-          flags,
+          flags
         )
       }
       const resolvedActual: ActualRepositoryState = {
@@ -215,7 +313,12 @@ export class GitService implements IGitService {
         ahead: aheadBehind.ahead,
         behind: aheadBehind.behind,
       }
-      return repositoryResult(repository, stateFromAheadBehind(aheadBehind), resolvedActual, flags)
+      return repositoryResult(
+        repository,
+        stateFromAheadBehind(aheadBehind),
+        resolvedActual,
+        flags
+      )
     } catch (error: unknown) {
       return repositoryFailure(repository, toUnexpectedCommandError(error))
     }
@@ -224,15 +327,25 @@ export class GitService implements IGitService {
   async prepareBranch(
     path: string,
     branch: GitBranchPreparationOptions,
-    options: GitOperationOptions = {},
+    options: GitOperationOptions = {}
   ): Promise<GitBranchPreparation> {
     const commands: GitCommandResult[] = []
-    const localBranch = await this.hasRef(path, `refs/heads/${branch.branch}`, options)
+    const localBranch = await this.hasRef(
+      path,
+      `refs/heads/${branch.branch}`,
+      options
+    )
     commands.push(localBranch.command)
-    if (isLookupFailure(localBranch)) return { commands, kind: GitBranchPreparationKind.Failed }
+    if (isLookupFailure(localBranch)) {
+      return { commands, kind: GitBranchPreparationKind.Failed }
+    }
 
     if (localBranch.exists) {
-      const command = await this.runAction(path, ['switch', branch.branch], options)
+      const command = await this.runAction(
+        path,
+        ['switch', branch.branch],
+        options
+      )
       commands.push(command)
       return {
         commands,
@@ -245,18 +358,26 @@ export class GitService implements IGitService {
     if (branch.fetchIfMissing !== false) {
       const fetch = await this.fetch(path, options)
       commands.push(fetch)
-      if (!isSuccessful(fetch)) return { commands, kind: GitBranchPreparationKind.Failed }
+      if (!isSuccessful(fetch)) {
+        return { commands, kind: GitBranchPreparationKind.Failed }
+      }
     }
 
-    const remoteBranch = await this.hasRef(path, `refs/remotes/origin/${branch.branch}`, options)
+    const remoteBranch = await this.hasRef(
+      path,
+      `refs/remotes/origin/${branch.branch}`,
+      options
+    )
     commands.push(remoteBranch.command)
-    if (isLookupFailure(remoteBranch)) return { commands, kind: GitBranchPreparationKind.Failed }
+    if (isLookupFailure(remoteBranch)) {
+      return { commands, kind: GitBranchPreparationKind.Failed }
+    }
 
     if (remoteBranch.exists) {
       const command = await this.runAction(
         path,
         ['switch', '-c', branch.branch, '--track', `origin/${branch.branch}`],
-        options,
+        options
       )
       commands.push(command)
       return {
@@ -268,16 +389,19 @@ export class GitService implements IGitService {
     }
 
     const fromRef = remoteTrackingRef(branch.from)
-    if (fromRef === null) return { commands, kind: GitBranchPreparationKind.Failed }
+    if (fromRef === null) {
+      return { commands, kind: GitBranchPreparationKind.Failed }
+    }
     const baseBranch = await this.hasRef(path, fromRef, options)
     commands.push(baseBranch.command)
-    if (isLookupFailure(baseBranch) || !baseBranch.exists)
+    if (isLookupFailure(baseBranch) || !baseBranch.exists) {
       return { commands, kind: GitBranchPreparationKind.Failed }
+    }
 
     const command = await this.runAction(
       path,
       ['switch', '--no-track', '-c', branch.branch, branch.from],
-      options,
+      options
     )
     commands.push(command)
     return {
@@ -288,20 +412,26 @@ export class GitService implements IGitService {
     }
   }
 
-  async probeRemote(url: string, options: GitOperationOptions = {}): Promise<GitCommandResult> {
+  async probeRemote(
+    url: string,
+    options: GitOperationOptions = {}
+  ): Promise<GitCommandResult> {
     return this.runner.run(['ls-remote', '--symref', url, 'HEAD'], {
       cwd: process.cwd(),
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       ...(options.onOutput === undefined ? {} : { onOutput: options.onOutput }),
       interactive: options.interactive === true,
-      stdio: options.interactive === true ? GitStdioMode.InteractivePipe : GitStdioMode.Pipe,
+      stdio:
+        options.interactive === true
+          ? GitStdioMode.InteractivePipe
+          : GitStdioMode.Pipe,
     })
   }
 
   async push(
     path: string,
     branch: string,
-    options: GitPushOptions = {},
+    options: GitPushOptions = {}
   ): Promise<GitCommandResult> {
     const args = ['push']
     if (options.dryRun === true) {
@@ -315,19 +445,21 @@ export class GitService implements IGitService {
   async stash(
     path: string,
     message: string,
-    options: GitOperationOptions = {},
+    options: GitOperationOptions = {}
   ): Promise<GitStashResult> {
     const command = await this.runAction(
       path,
       ['stash', 'push', '--include-untracked', '-m', message],
-      options,
+      options
     )
-    if (!isSuccessful(command)) return { command, reference: null }
+    if (!isSuccessful(command)) {
+      return { command, reference: null }
+    }
 
     const reference = await this.runRead(
       path,
       ['rev-parse', '--verify', '--quiet', 'refs/stash'],
-      options,
+      options
     )
     return { command, reference: isSuccessful(reference) ? 'stash@{0}' : null }
   }
@@ -335,32 +467,48 @@ export class GitService implements IGitService {
   async switchToBranch(
     path: string,
     branch: Omit<GitBranchPreparationOptions, 'fetchIfMissing'>,
-    options: GitOperationOptions = {},
+    options: GitOperationOptions = {}
   ): Promise<GitBranchPreparation> {
-    return this.prepareBranch(path, { ...branch, fetchIfMissing: true }, options)
+    return this.prepareBranch(
+      path,
+      { ...branch, fetchIfMissing: true },
+      options
+    )
   }
 
   async validateCheckoutPaths(
     path: string,
     checkout: readonly string[],
-    options: GitOperationOptions = {},
+    options: GitOperationOptions = {}
   ): Promise<GitCheckoutPathValidation> {
     const validations = await Promise.all(
       checkout.map(async (directory) => ({
         command: await this.runRead(
           path,
-          ['ls-tree', '-d', '-z', '--name-only', 'HEAD', '--', `:(literal)${directory}`],
-          options,
+          [
+            'ls-tree',
+            '-d',
+            '-z',
+            '--name-only',
+            'HEAD',
+            '--',
+            `:(literal)${directory}`,
+          ],
+          options
         ),
         directory,
-      })),
+      }))
     )
 
     return {
       commands: validations.map(({ command }) => command),
       missingPaths: validations.flatMap(({ command, directory }) => {
-        if (!isSuccessful(command)) return []
-        const matches = command.stdout.split('\0').filter((entry) => entry.length > 0)
+        if (!isSuccessful(command)) {
+          return []
+        }
+        const matches = command.stdout
+          .split('\0')
+          .filter((entry) => entry.length > 0)
         return matches.includes(directory) ? [] : [directory]
       }),
     }
@@ -369,43 +517,55 @@ export class GitService implements IGitService {
   private async readAheadBehind(
     path: string,
     upstream: string,
-    options: GitOperationOptions,
+    options: GitOperationOptions
   ): Promise<Readonly<{ ahead: number | null; behind: number | null }>> {
     const result = await this.runRead(
       path,
       ['rev-list', '--left-right', '--count', `HEAD...${upstream}`],
-      options,
+      options
     )
-    if (!isSuccessful(result)) return { ahead: null, behind: null }
+    if (!isSuccessful(result)) {
+      return { ahead: null, behind: null }
+    }
     return parseAheadBehind(result.stdout)
   }
 
   private async readCheckout(
     path: string,
-    options: GitOperationOptions,
+    options: GitOperationOptions
   ): Promise<CheckoutInspection> {
     const enabled = await this.runRead(
       path,
       ['config', '--bool', '--get', 'core.sparseCheckout'],
-      options,
+      options
     )
     if (enabled.exitCode === 1 && !enabled.aborted) {
       return { error: null, isCone: null, paths: null }
     }
-    if (!isSuccessful(enabled)) return { error: enabled, isCone: null, paths: null }
-    if (enabled.stdout.trim() !== 'true') return { error: null, isCone: null, paths: null }
+    if (!isSuccessful(enabled)) {
+      return { error: enabled, isCone: null, paths: null }
+    }
+    if (enabled.stdout.trim() !== 'true') {
+      return { error: null, isCone: null, paths: null }
+    }
 
     const cone = await this.runRead(
       path,
       ['config', '--bool', '--get', 'core.sparseCheckoutCone'],
-      options,
+      options
     )
     if (cone.exitCode !== 0 && cone.exitCode !== 1) {
       return { error: cone, isCone: null, paths: null }
     }
 
-    const listed = await this.runRead(path, ['sparse-checkout', 'list'], options)
-    if (!isSuccessful(listed)) return { error: listed, isCone: null, paths: null }
+    const listed = await this.runRead(
+      path,
+      ['sparse-checkout', 'list'],
+      options
+    )
+    if (!isSuccessful(listed)) {
+      return { error: listed, isCone: null, paths: null }
+    }
 
     return {
       error: null,
@@ -417,28 +577,31 @@ export class GitService implements IGitService {
     }
   }
 
-  private runAction(
+  private async runAction(
     path: string,
     args: readonly string[],
-    options: GitOperationOptions,
-  ): Promise<GitCommandResult> {
-    return this.runner.run(args, commandOptions(path, options, options.interactive === true))
-  }
-
-  private runOutsideRepository(
-    args: readonly string[],
-    options: GitOperationOptions,
+    options: GitOperationOptions
   ): Promise<GitCommandResult> {
     return this.runner.run(
       args,
-      commandOptions(process.cwd(), options, options.interactive === true),
+      commandOptions(path, options, options.interactive === true)
     )
   }
 
-  private runRead(
+  private async runOutsideRepository(
+    args: readonly string[],
+    options: GitOperationOptions
+  ): Promise<GitCommandResult> {
+    return this.runner.run(
+      args,
+      commandOptions(process.cwd(), options, options.interactive === true)
+    )
+  }
+
+  private async runRead(
     path: string,
     args: readonly string[],
-    options: GitOperationOptions,
+    options: GitOperationOptions
   ): Promise<GitCommandResult> {
     return this.runner.run(args, commandOptions(path, options, false))
   }
@@ -449,12 +612,15 @@ export function isSuccessful(result: GitCommandResult): boolean {
 }
 
 export function toCommandError(result: GitCommandResult): CommandError {
-  const output = nonEmptyTrimmed(result.stderr) ?? nonEmptyTrimmed(result.stdout)
-  const outcome = result.aborted
-    ? 'was interrupted'
-    : result.exitCode === null
-      ? 'did not return an exit code'
-      : `exited with code ${result.exitCode}`
+  const output =
+    nonEmptyTrimmed(result.stderr) ?? nonEmptyTrimmed(result.stdout)
+  let outcome = `exited with code ${result.exitCode}`
+  if (result.exitCode === null) {
+    outcome = 'did not return an exit code'
+  }
+  if (result.aborted) {
+    outcome = 'was interrupted'
+  }
   return {
     code: result.aborted ? 'interrupted' : 'git-command-failed',
     message: output ?? `git ${result.args.join(' ')} ${outcome}`,
@@ -475,13 +641,6 @@ type CheckoutInspection = Readonly<{
   paths: readonly string[] | null
 }>
 
-enum PathState {
-  Directory = 'directory',
-  Missing = 'missing',
-  NotDirectory = 'not-directory',
-  Unavailable = 'unavailable',
-}
-
 async function inspectPath(path: string): Promise<PathState> {
   try {
     const metadata = await stat(path)
@@ -494,8 +653,12 @@ async function inspectPath(path: string): Promise<PathState> {
 function commandOptions(
   cwd: string,
   options: GitOperationOptions,
-  inheritStdio: boolean,
+  inheritStdio: boolean
 ): GitCommandOptions {
+  const stdio =
+    options.onOutput === undefined
+      ? GitStdioMode.Inherit
+      : GitStdioMode.InteractivePipe
   return {
     cwd,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
@@ -503,8 +666,7 @@ function commandOptions(
     ...(inheritStdio
       ? {
           interactive: true,
-          stdio:
-            options.onOutput === undefined ? GitStdioMode.Inherit : GitStdioMode.InteractivePipe,
+          stdio,
         }
       : {}),
   }
@@ -528,27 +690,29 @@ function parseStatus(output: string): ParsedStatus {
       continue
     }
     if (line.startsWith('# branch.ab ')) {
-      const parsed = parseAheadBehind(line.slice('# branch.ab '.length))
-      ahead = parsed.ahead
-      behind = parsed.behind
+      ;({ ahead, behind } = parseAheadBehind(line.slice('# branch.ab '.length)))
       continue
     }
-    if (line.length > 0 && !line.startsWith('# ')) dirty = true
+    if (line.length > 0 && !line.startsWith('# ')) {
+      dirty = true
+    }
   }
 
   return { ahead, behind, branch, dirty, upstream }
 }
 
 function parseAheadBehind(
-  output: string,
+  output: string
 ): Readonly<{ ahead: number | null; behind: number | null }> {
   const matches = /^\+?(?<ahead>\d+)\s+-?(?<behind>\d+)$/u.exec(output.trim())
   const aheadText = matches?.groups?.ahead
   const behindText = matches?.groups?.behind
-  if (aheadText === undefined || behindText === undefined) return { ahead: null, behind: null }
+  if (aheadText === undefined || behindText === undefined) {
+    return { ahead: null, behind: null }
+  }
 
-  const ahead = Number.parseInt(aheadText, 10)
-  const behind = Number.parseInt(behindText, 10)
+  const ahead = Math.trunc(Number(aheadText))
+  const behind = Math.trunc(Number(behindText))
   return Number.isSafeInteger(ahead) && Number.isSafeInteger(behind)
     ? { ahead, behind }
     : { ahead: null, behind: null }
@@ -557,7 +721,7 @@ function parseAheadBehind(
 function repositoryFlags(
   checkoutDifferent: boolean,
   dirty: boolean,
-  urlDifferent: boolean,
+  urlDifferent: boolean
 ): readonly RepositoryFlag[] {
   return [
     ...(checkoutDifferent ? [RepositoryFlag.CheckoutDifferent] : []),
@@ -568,10 +732,14 @@ function repositoryFlags(
 
 function sameCheckout(
   expected: readonly string[] | null,
-  actual: readonly string[] | null,
+  actual: readonly string[] | null
 ): boolean {
-  if (expected === null || actual === null) return expected === actual
-  if (expected.length !== actual.length) return false
+  if (expected === null || actual === null) {
+    return expected === actual
+  }
+  if (expected.length !== actual.length) {
+    return false
+  }
 
   const expectedPaths = expected.toSorted()
   const actualPaths = actual.toSorted()
@@ -582,7 +750,7 @@ function repositoryResult(
   repository: TaskRepository,
   state: RepositoryState,
   actual: ActualRepositoryState = emptyActualState(),
-  flags: readonly RepositoryFlag[] = [],
+  flags: readonly RepositoryFlag[] = []
 ): RepositoryCommandResult {
   return {
     actual,
@@ -600,7 +768,7 @@ function repositoryFailure(
   repository: TaskRepository,
   error: CommandError,
   actual: ActualRepositoryState = emptyActualState(),
-  flags: readonly RepositoryFlag[] = [],
+  flags: readonly RepositoryFlag[] = []
 ): RepositoryCommandResult {
   return {
     actual,
@@ -615,18 +783,28 @@ function repositoryFailure(
 }
 
 function stateFromAheadBehind(
-  counts: Readonly<{ ahead: number | null; behind: number | null }>,
+  counts: Readonly<{ ahead: number | null; behind: number | null }>
 ): RepositoryState {
-  if (counts.ahead === null || counts.behind === null) return RepositoryState.SyncedLocal
-  if (counts.ahead > 0 && counts.behind > 0) return RepositoryState.Diverged
-  if (counts.ahead > 0) return RepositoryState.Ahead
-  if (counts.behind > 0) return RepositoryState.Behind
+  if (counts.ahead === null || counts.behind === null) {
+    return RepositoryState.SyncedLocal
+  }
+  if (counts.ahead > 0 && counts.behind > 0) {
+    return RepositoryState.Diverged
+  }
+  if (counts.ahead > 0) {
+    return RepositoryState.Ahead
+  }
+  if (counts.behind > 0) {
+    return RepositoryState.Behind
+  }
   return RepositoryState.SyncedLocal
 }
 
 function remoteTrackingRef(upstream: string): string | null {
   const separator = upstream.indexOf('/')
-  if (separator < 1 || separator === upstream.length - 1) return null
+  if (separator < 1 || separator === upstream.length - 1) {
+    return null
+  }
   return `refs/remotes/${upstream}`
 }
 
@@ -642,10 +820,18 @@ function nonEmptyTrimmed(value: string): string | null {
 function toUnexpectedCommandError(error: unknown): CommandError {
   return {
     code: 'git-command-failed',
-    message: error instanceof Error ? error.message : 'Git command failed unexpectedly',
+    message:
+      error instanceof Error
+        ? error.message
+        : 'Git command failed unexpectedly',
   }
 }
 
 function hasCode(error: unknown, code: string): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === code
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === code
+  )
 }

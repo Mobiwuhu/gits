@@ -1,6 +1,10 @@
-import { createIdentifier, type IdentifierDecorator } from '@wendellhu/redi'
+import { createIdentifier } from '@wendellhu/redi'
+import type { IdentifierDecorator } from '@wendellhu/redi'
 
-import type { FollowRepoMirrorLogsInput, GetRepoMirrorLogsInput } from '../types/index'
+import type {
+  FollowRepoMirrorLogsInput,
+  GetRepoMirrorLogsInput,
+} from '../types/index'
 
 export interface IGetRepoMirrorLogsService {
   execute(input: GetRepoMirrorLogsInput): Promise<readonly string[]>

@@ -4,7 +4,8 @@ import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { extract } from '@scaffdog/core'
 import { compile, createContext, extendContext } from '@scaffdog/engine'
 
-import { GitsError, type ITaskScaffoldService } from '../../../contract/index'
+import { GitsError } from '../../../contract/index'
+import type { ITaskScaffoldService } from '../../../contract/index'
 
 const templateFileName = 'taskScaffold.md'
 
@@ -18,11 +19,15 @@ export class TaskScaffoldService implements ITaskScaffoldService {
       files.map(async (file) => {
         await mkdir(dirname(file.path), { recursive: true })
         await this.writeMissingFile(file.path, file.content)
-      }),
+      })
     )
   }
 
-  async isDefaultContent(root: string, relativePath: string, content: string): Promise<boolean> {
+  async isDefaultContent(
+    root: string,
+    relativePath: string,
+    content: string
+  ): Promise<boolean> {
     const taskRoot = resolve(root)
     const path = this.resolveOutputPath(taskRoot, relativePath)
     const files = await this.renderTemplate(taskRoot)
@@ -41,14 +46,22 @@ export class TaskScaffoldService implements ITaskScaffoldService {
     const files = extracted.templates.map((template) => {
       const relativePath = compile(template.filename, context)
       const path = this.resolveOutputPath(root, relativePath)
-      const variables = new Map(context.variables)
-      variables.set('output', { path: relativePath })
-      const content = compile(template.content, extendContext(context, { variables }))
+      const variables = new Map([
+        ...context.variables,
+        ['output', { path: relativePath }],
+      ])
+      const content = compile(
+        template.content,
+        extendContext(context, { variables })
+      )
       return { content, path }
     })
 
     if (files.length === 0) {
-      throw new GitsError('task-template-empty', `Scaffdog template ${templateFileName} is empty.`)
+      throw new GitsError(
+        'task-template-empty',
+        `Scaffdog template ${templateFileName} is empty.`
+      )
     }
 
     return files
@@ -62,17 +75,22 @@ export class TaskScaffoldService implements ITaskScaffoldService {
 
     for (const path of candidates) {
       try {
-        return await readFile(path, 'utf8')
+        return await readFile(path, 'utf-8')
       } catch (error) {
-        if (isMissingPathError(error)) continue
+        if (isMissingPathError(error)) {
+          continue
+        }
         const message = error instanceof Error ? error.message : String(error)
-        throw new GitsError('task-template-unavailable', `Cannot read ${path}: ${message}`)
+        throw new GitsError(
+          'task-template-unavailable',
+          `Cannot read ${path}: ${message}`
+        )
       }
     }
 
     throw new GitsError(
       'task-template-unavailable',
-      `Cannot find the bundled Scaffdog template ${templateFileName}.`,
+      `Cannot find the bundled Scaffdog template ${templateFileName}.`
     )
   }
 
@@ -88,7 +106,7 @@ export class TaskScaffoldService implements ITaskScaffoldService {
     ) {
       throw new GitsError(
         'task-template-path-invalid',
-        `Scaffdog template output must stay inside the task directory: ${relativePath}`,
+        `Scaffdog template output must stay inside the task directory: ${relativePath}`
       )
     }
     return path
@@ -96,13 +114,16 @@ export class TaskScaffoldService implements ITaskScaffoldService {
 
   private async writeMissingFile(path: string, content: string): Promise<void> {
     try {
-      await writeFile(path, content, { encoding: 'utf8', flag: 'wx' })
+      await writeFile(path, content, { encoding: 'utf-8', flag: 'wx' })
     } catch (error) {
-      if (isExistingPathError(error) && (await stat(path)).isFile()) return
+      const metadata = isExistingPathError(error) ? await stat(path) : undefined
+      if (metadata?.isFile() === true) {
+        return
+      }
       if (isExistingPathError(error)) {
         throw new GitsError(
           'task-scaffold-path-invalid',
-          `Task scaffold expected a file but found another kind of path: ${path}`,
+          `Task scaffold expected a file but found another kind of path: ${path}`
         )
       }
       throw error

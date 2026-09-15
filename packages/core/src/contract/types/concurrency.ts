@@ -44,7 +44,7 @@ export type ConcurrentWorker<T, R> = (
   item: T,
   index: number,
   signal: AbortSignal | undefined,
-  task: ConcurrentTaskReporter,
+  task: ConcurrentTaskReporter
 ) => Promise<R>
 
 export type ConcurrentTaskOutcome = Readonly<{

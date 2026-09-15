@@ -2,7 +2,10 @@ import type { RepoMirrorCommandOutput, RepoMirrorView } from '@gits/core'
 
 import { formatCliTable } from './cliTable'
 
-export function formatRepoMirrorOutput(output: RepoMirrorCommandOutput, wide = false): string {
+export function formatRepoMirrorOutput(
+  output: RepoMirrorCommandOutput,
+  wide = false
+): string {
   if (output.mirrors.length === 0) {
     return output.ok
       ? 'No repo mirrors configured.'
@@ -23,7 +26,10 @@ export function formatRepoMirrorOutput(output: RepoMirrorCommandOutput, wide = f
     : ''
   const errors = output.mirrors
     .filter((mirror) => mirror.error !== null)
-    .map((mirror) => `${mirror.name}: ${mirror.error?.code}: ${mirror.error?.message}`)
+    .map(
+      (mirror) =>
+        `${mirror.name}: ${mirror.error?.code}: ${mirror.error?.message}`
+    )
   const warnings = output.warnings ?? []
   return [
     summary + details,
@@ -49,7 +55,10 @@ function formatDetails(mirror: RepoMirrorView): string {
     ['projection', mirror.projectionPath ?? '-'],
     ['schedule state', mirror.scheduleState],
     ['scheduler message', mirror.schedulerMessage ?? '-'],
-    ['dependents', mirror.dependents.length === 0 ? '-' : mirror.dependents.join('\n')],
+    [
+      'dependents',
+      mirror.dependents.length === 0 ? '-' : mirror.dependents.join('\n'),
+    ],
     ['size', mirror.sizeBytes === null ? '-' : formatBytes(mirror.sizeBytes)],
   ])
 }
@@ -60,7 +69,9 @@ function formatLastRun(mirror: RepoMirrorView): string {
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
   const units = ['KiB', 'MiB', 'GiB', 'TiB']
   let value = bytes / 1024
   let unit = units[0] ?? 'KiB'

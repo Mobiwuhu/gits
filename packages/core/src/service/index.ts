@@ -6,6 +6,7 @@ export { GitsPathService } from './GitsPathService'
 export { ProcessService } from './ProcessService'
 export {
   gitsExternalPersistenceRegistry,
+  gitsHomePersistenceKeys,
   gitsHomePersistenceRegistry,
   gitsManagedArtifactRegistry,
   gitsPersistenceRootRegistry,

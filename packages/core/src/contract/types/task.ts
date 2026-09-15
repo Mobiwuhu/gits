@@ -27,5 +27,5 @@ export function isRepositoryIncomplete(repository: TaskRepository): boolean {
     repository.from,
     repository.path,
     ...(repository.checkout ?? []),
-  ].some((value) => /<[^>]+>/.test(value))
+  ].some((value) => /<[^>]+>/u.test(value))
 }

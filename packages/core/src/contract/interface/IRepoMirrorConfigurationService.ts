@@ -1,18 +1,26 @@
-import { createIdentifier, type IdentifierDecorator } from '@wendellhu/redi'
+import { createIdentifier } from '@wendellhu/redi'
+import type { IdentifierDecorator } from '@wendellhu/redi'
 
-import type { RepoMirrorConfiguration, RepoMirrorDefinition } from '../types/index'
+import type {
+  RepoMirrorConfiguration,
+  RepoMirrorDefinition,
+} from '../types/index'
 
 export interface IRepoMirrorConfigurationService {
-  identities(configuration: RepoMirrorConfiguration): Promise<ReadonlyMap<string, string>>
+  identities(
+    configuration: RepoMirrorConfiguration
+  ): Promise<ReadonlyMap<string, string>>
   replace(
     configuration: RepoMirrorConfiguration,
-    replacement: RepoMirrorDefinition,
+    replacement: RepoMirrorDefinition
   ): RepoMirrorConfiguration
   select(
     configuration: RepoMirrorConfiguration,
-    names: readonly string[],
+    names: readonly string[]
   ): readonly RepoMirrorDefinition[]
 }
 
 export const IRepoMirrorConfigurationService: IdentifierDecorator<IRepoMirrorConfigurationService> =
-  createIdentifier<IRepoMirrorConfigurationService>('core.repoMirrorConfigurationService')
+  createIdentifier<IRepoMirrorConfigurationService>(
+    'core.repoMirrorConfigurationService'
+  )

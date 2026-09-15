@@ -7,11 +7,11 @@ export type RepositoryProgressReporter = (progress: RepositoryProgress) => void
 
 export function reportProgress(
   reporter: RepositoryProgressReporter | undefined,
-  progress: RepositoryProgress,
+  progress: RepositoryProgress
 ): void {
   try {
     reporter?.(progress)
   } catch {
-    // Rendering progress must never change a repository operation's outcome.
+    // 进度渲染不能改变仓库操作的结果。
   }
 }

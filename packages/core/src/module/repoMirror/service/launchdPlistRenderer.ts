@@ -1,4 +1,5 @@
-import { build, type PlistValue } from 'plist'
+import { build } from 'plist'
+import type { PlistValue } from 'plist'
 
 import type { RepoMirrorScheduledInvocation } from '../../../contract/index'
 import type { CalendarEntry } from './portableCron'

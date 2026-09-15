@@ -1,5 +1,6 @@
 import type { RepoMirrorScheduledInvocation } from '../../../contract/index'
-import { calendarEntryToSystemd, type CalendarEntry } from './portableCron'
+import { calendarEntryToSystemd } from './portableCron'
+import type { CalendarEntry } from './portableCron'
 
 export interface SystemdJob {
   readonly calendarEntries: readonly CalendarEntry[]
@@ -20,7 +21,9 @@ export function renderSystemdUnits(job: SystemdJob): SystemdUnits {
     .join(' ')
   const environment = Object.entries(job.invocation.environment)
     .toSorted(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `Environment=${quoteSystemdValue(`${key}=${value}`)}`)
+    .map(
+      ([key, value]) => `Environment=${quoteSystemdValue(`${key}=${value}`)}`
+    )
   const service = [
     '[Unit]',
     `Description=Fetch gits repo mirror ${escapeDescription(job.name)}`,
@@ -36,7 +39,7 @@ export function renderSystemdUnits(job: SystemdJob): SystemdUnits {
     '',
   ].join('\n')
   const calendars = job.calendarEntries.map(
-    (entry) => `OnCalendar=${calendarEntryToSystemd(entry)}`,
+    (entry) => `OnCalendar=${calendarEntryToSystemd(entry)}`
   )
   const timer = [
     '[Unit]',
@@ -57,17 +60,20 @@ export function renderSystemdUnits(job: SystemdJob): SystemdUnits {
 
 function quoteSystemdValue(value: string): string {
   assertSingleLine(value)
-  return `"${value.replace(/%/gu, '%%').replace(/\\/gu, '\\\\').replace(/"/gu, '\\"')}"`
+  return `"${value.replaceAll('%', '%%').replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`
 }
 
 function escapeDirectivePath(value: string): string {
   assertSingleLine(value)
-  return value.replace(/%/gu, '%%').replace(/\\/gu, '\\\\').replace(/ /gu, '\\x20')
+  return value
+    .replaceAll('%', '%%')
+    .replaceAll('\\', '\\\\')
+    .replaceAll(' ', '\\x20')
 }
 
 function escapeDescription(value: string): string {
   assertSingleLine(value)
-  return value.replace(/%/gu, '%%')
+  return value.replaceAll('%', '%%')
 }
 
 function assertSingleLine(value: string): void {

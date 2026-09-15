@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { ICliApplication } from './contract/index'
 import { createContainer } from './bootstrap/index'
+import { ICliApplication } from './contract/index'
 
 const container = createContainer()
 try {

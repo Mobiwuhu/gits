@@ -12,10 +12,12 @@ import {
   IStableRunnerInstaller,
   RepoMirrorScheduleState,
   RepoMirrorSchedulerBackend,
-  type IRepoMirrorSchedulerService,
-  type RepoMirrorDefinition,
-  type RepoMirrorScheduledInvocation,
-  type RepoMirrorSchedulerObservation,
+} from '../../../contract/index'
+import type {
+  IRepoMirrorSchedulerService,
+  RepoMirrorDefinition,
+  RepoMirrorScheduledInvocation,
+  RepoMirrorSchedulerObservation,
 } from '../../../contract/index'
 import {
   gitsExternalPersistenceRegistry,
@@ -52,9 +54,10 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
   constructor(
     @Inject(IGitsPathService) private readonly paths: IGitsPathService,
     @Inject(IProcessService) private readonly runner: IProcessService,
-    @Inject(IStableRunnerInstaller) private readonly stableRunner: IStableRunnerInstaller,
+    @Inject(IStableRunnerInstaller)
+    private readonly stableRunner: IStableRunnerInstaller,
     @Inject(IFileSystemService) private readonly fileSystem: IFileSystemService,
-    options: NativeRepoMirrorSchedulerOptions = {},
+    options: NativeRepoMirrorSchedulerOptions = {}
   ) {
     this.#environment = options.environment ?? process.env
     this.#platform = options.platformInfo ?? {
@@ -68,16 +71,28 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
     return this.stableRunner.invocation(name)
   }
 
-  async apply(definition: RepoMirrorDefinition): Promise<RepoMirrorSchedulerObservation> {
-    if (definition.schedule === undefined) return this.remove(definition.name)
+  async apply(
+    definition: RepoMirrorDefinition
+  ): Promise<RepoMirrorSchedulerObservation> {
+    if (definition.schedule === undefined) {
+      return this.remove(definition.name)
+    }
     await this.stableRunner.install()
     const entries = compileCalendarEntries(definition.schedule.cron)
-    if (this.#platform.platform === 'darwin') return this.applyLaunchd(definition, entries)
-    if (this.#platform.platform === 'linux') return this.applySystemd(definition, entries)
-    return unsupportedObservation('Native scheduling is supported only on macOS and Linux.')
+    if (this.#platform.platform === 'darwin') {
+      return this.applyLaunchd(definition, entries)
+    }
+    if (this.#platform.platform === 'linux') {
+      return this.applySystemd(definition, entries)
+    }
+    return unsupportedObservation(
+      'Native scheduling is supported only on macOS and Linux.'
+    )
   }
 
-  async inspect(definition: RepoMirrorDefinition): Promise<RepoMirrorSchedulerObservation> {
+  async inspect(
+    definition: RepoMirrorDefinition
+  ): Promise<RepoMirrorSchedulerObservation> {
     if (definition.schedule === undefined) {
       return {
         backend: backendFor(this.#platform.platform),
@@ -87,14 +102,24 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
       }
     }
     const entries = compileCalendarEntries(definition.schedule.cron)
-    if (this.#platform.platform === 'darwin') return this.inspectLaunchd(definition, entries)
-    if (this.#platform.platform === 'linux') return this.inspectSystemd(definition, entries)
-    return unsupportedObservation('Native scheduling is supported only on macOS and Linux.')
+    if (this.#platform.platform === 'darwin') {
+      return this.inspectLaunchd(definition, entries)
+    }
+    if (this.#platform.platform === 'linux') {
+      return this.inspectSystemd(definition, entries)
+    }
+    return unsupportedObservation(
+      'Native scheduling is supported only on macOS and Linux.'
+    )
   }
 
   async remove(name: string): Promise<RepoMirrorSchedulerObservation> {
-    if (this.#platform.platform === 'darwin') return this.removeLaunchd(name)
-    if (this.#platform.platform === 'linux') return this.removeSystemd(name)
+    if (this.#platform.platform === 'darwin') {
+      return this.removeLaunchd(name)
+    }
+    if (this.#platform.platform === 'linux') {
+      return this.removeSystemd(name)
+    }
     return {
       backend: RepoMirrorSchedulerBackend.Unsupported,
       nativeJob: null,
@@ -105,7 +130,7 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
 
   private async applyLaunchd(
     definition: RepoMirrorDefinition,
-    entries: ReturnType<typeof compileCalendarEntries>,
+    entries: ReturnType<typeof compileCalendarEntries>
   ): Promise<RepoMirrorSchedulerObservation> {
     const identity = await this.identity(definition.name)
     const path = this.launchdPath(identity.label)
@@ -123,24 +148,30 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
       standardOutputPath: nativeLog,
     })
     const existing = await readOptional(path)
-    if (existing !== null && !existing.includes(`<string>${identity.label}</string>`)) {
+    if (
+      existing !== null &&
+      !existing.includes(`<string>${identity.label}</string>`)
+    ) {
       return launchdObservation(
         identity.label,
         path,
         RepoMirrorScheduleState.Drifted,
-        'Refusing to overwrite a LaunchAgent that is not managed by gits.',
+        'Refusing to overwrite a LaunchAgent that is not managed by gits.'
       )
     }
     const temporary = `${path}.${randomUUID()}.tmp`
     await this.fileSystem.writeFileAtomically(temporary, content)
     try {
-      const lint = await this.runner.run('/usr/bin/plutil', ['-lint', temporary])
+      const lint = await this.runner.run('/usr/bin/plutil', [
+        '-lint',
+        temporary,
+      ])
       if (lint.exitCode !== 0) {
         return launchdObservation(
           identity.label,
           path,
           RepoMirrorScheduleState.Unavailable,
-          nonEmpty(lint.stderr),
+          nonEmpty(lint.stderr)
         )
       }
       await rename(temporary, path)
@@ -153,44 +184,58 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
         identity.label,
         path,
         RepoMirrorScheduleState.Unavailable,
-        'Cannot determine user id.',
+        'Cannot determine user id.'
       )
     }
     const domain = `gui/${this.#platform.uid}`
     try {
-      const capability = await this.runner.run('/bin/launchctl', ['print', domain])
+      const capability = await this.runner.run('/bin/launchctl', [
+        'print',
+        domain,
+      ])
       if (capability.exitCode !== 0) {
         return launchdObservation(
           identity.label,
           path,
           RepoMirrorScheduleState.Unavailable,
-          nonEmpty(capability.stderr),
+          nonEmpty(capability.stderr)
         )
       }
       await this.runner.run('/bin/launchctl', ['bootout', domain, path])
-      await this.runner.run('/bin/launchctl', ['enable', `${domain}/${identity.label}`])
-      const loaded = await this.runner.run('/bin/launchctl', ['bootstrap', domain, path])
+      await this.runner.run('/bin/launchctl', [
+        'enable',
+        `${domain}/${identity.label}`,
+      ])
+      const loaded = await this.runner.run('/bin/launchctl', [
+        'bootstrap',
+        domain,
+        path,
+      ])
       return loaded.exitCode === 0
-        ? launchdObservation(identity.label, path, RepoMirrorScheduleState.Ready)
+        ? launchdObservation(
+            identity.label,
+            path,
+            RepoMirrorScheduleState.Ready
+          )
         : launchdObservation(
             identity.label,
             path,
             RepoMirrorScheduleState.Unavailable,
-            nonEmpty(loaded.stderr),
+            nonEmpty(loaded.stderr)
           )
     } catch (error) {
       return launchdObservation(
         identity.label,
         path,
         RepoMirrorScheduleState.Unavailable,
-        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.message : String(error)
       )
     }
   }
 
   private async inspectLaunchd(
     definition: RepoMirrorDefinition,
-    entries: ReturnType<typeof compileCalendarEntries>,
+    entries: ReturnType<typeof compileCalendarEntries>
   ): Promise<RepoMirrorSchedulerObservation> {
     const identity = await this.identity(definition.name)
     const path = this.launchdPath(identity.label)
@@ -203,52 +248,74 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
       standardOutputPath: nativeLog,
     })
     const actual = await readOptional(path)
-    if (actual !== expected)
-      return launchdObservation(identity.label, path, RepoMirrorScheduleState.Drifted)
-    if (this.#platform.uid === null)
-      return launchdObservation(identity.label, path, RepoMirrorScheduleState.Unavailable)
+    if (actual !== expected) {
+      return launchdObservation(
+        identity.label,
+        path,
+        RepoMirrorScheduleState.Drifted
+      )
+    }
+    if (this.#platform.uid === null) {
+      return launchdObservation(
+        identity.label,
+        path,
+        RepoMirrorScheduleState.Unavailable
+      )
+    }
     try {
       const loaded = await this.runner.run('/bin/launchctl', [
         'print',
         `gui/${this.#platform.uid}/${identity.label}`,
       ])
       return loaded.exitCode === 0
-        ? launchdObservation(identity.label, path, RepoMirrorScheduleState.Ready)
+        ? launchdObservation(
+            identity.label,
+            path,
+            RepoMirrorScheduleState.Ready
+          )
         : launchdObservation(
             identity.label,
             path,
             RepoMirrorScheduleState.Unavailable,
-            nonEmpty(loaded.stderr),
+            nonEmpty(loaded.stderr)
           )
     } catch (error) {
       return launchdObservation(
         identity.label,
         path,
         RepoMirrorScheduleState.Unavailable,
-        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.message : String(error)
       )
     }
   }
 
-  private async removeLaunchd(name: string): Promise<RepoMirrorSchedulerObservation> {
+  private async removeLaunchd(
+    name: string
+  ): Promise<RepoMirrorSchedulerObservation> {
     const identity = await this.identity(name)
     const path = this.launchdPath(identity.label)
     const existing = await readOptional(path)
-    if (existing !== null && !existing.includes(`<string>${identity.label}</string>`)) {
+    if (
+      existing !== null &&
+      !existing.includes(`<string>${identity.label}</string>`)
+    ) {
       return launchdObservation(
         identity.label,
         path,
         RepoMirrorScheduleState.Drifted,
-        'Refusing to remove a LaunchAgent that is not managed by gits.',
+        'Refusing to remove a LaunchAgent that is not managed by gits.'
       )
     }
     if (this.#platform.uid !== null) {
       const domain = `gui/${this.#platform.uid}`
       try {
         await this.runner.run('/bin/launchctl', ['bootout', domain, path])
-        await this.runner.run('/bin/launchctl', ['enable', `${domain}/${identity.label}`])
+        await this.runner.run('/bin/launchctl', [
+          'enable',
+          `${domain}/${identity.label}`,
+        ])
       } catch {
-        // The projection is still safe to remove when no GUI launchd domain is available.
+        // 即使没有可用的 GUI launchd 域，删除投影文件仍然安全。
       }
     }
     await rm(path, { force: true })
@@ -257,7 +324,7 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
 
   private async applySystemd(
     definition: RepoMirrorDefinition,
-    entries: ReturnType<typeof compileCalendarEntries>,
+    entries: ReturnType<typeof compileCalendarEntries>
   ): Promise<RepoMirrorSchedulerObservation> {
     const identity = await this.identity(definition.name)
     const paths = this.systemdPaths(identity)
@@ -276,14 +343,15 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
       readOptional(paths.timer),
     ])
     if (
-      (existingService !== null && !existingService.includes('X-Gits-Managed=true')) ||
+      (existingService !== null &&
+        !existingService.includes('X-Gits-Managed=true')) ||
       (existingTimer !== null && !existingTimer.includes('X-Gits-Managed=true'))
     ) {
       return systemdObservation(
         identity.timerName,
         paths.timer,
         RepoMirrorScheduleState.Drifted,
-        'Refusing to overwrite a systemd unit that is not managed by gits.',
+        'Refusing to overwrite a systemd unit that is not managed by gits.'
       )
     }
     await this.fileSystem.writeFileAtomically(paths.service, units.service)
@@ -300,16 +368,19 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
           identity.timerName,
           paths.timer,
           RepoMirrorScheduleState.Unavailable,
-          nonEmpty(verified.stderr),
+          nonEmpty(verified.stderr)
         )
       }
-      const reload = await this.runner.run('systemctl', ['--user', 'daemon-reload'])
+      const reload = await this.runner.run('systemctl', [
+        '--user',
+        'daemon-reload',
+      ])
       if (reload.exitCode !== 0) {
         return systemdObservation(
           identity.timerName,
           paths.timer,
           RepoMirrorScheduleState.Unavailable,
-          nonEmpty(reload.stderr),
+          nonEmpty(reload.stderr)
         )
       }
       const enabled = await this.runner.run('systemctl', [
@@ -319,26 +390,30 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
         identity.timerName,
       ])
       return enabled.exitCode === 0
-        ? systemdObservation(identity.timerName, paths.timer, RepoMirrorScheduleState.Ready)
+        ? systemdObservation(
+            identity.timerName,
+            paths.timer,
+            RepoMirrorScheduleState.Ready
+          )
         : systemdObservation(
             identity.timerName,
             paths.timer,
             RepoMirrorScheduleState.Unavailable,
-            nonEmpty(enabled.stderr),
+            nonEmpty(enabled.stderr)
           )
     } catch (error) {
       return systemdObservation(
         identity.timerName,
         paths.timer,
         RepoMirrorScheduleState.Unavailable,
-        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.message : String(error)
       )
     }
   }
 
   private async inspectSystemd(
     definition: RepoMirrorDefinition,
-    entries: ReturnType<typeof compileCalendarEntries>,
+    entries: ReturnType<typeof compileCalendarEntries>
   ): Promise<RepoMirrorSchedulerObservation> {
     const identity = await this.identity(definition.name)
     const paths = this.systemdPaths(identity)
@@ -355,27 +430,49 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
       readOptional(paths.timer),
     ])
     if (service !== expected.service || timer !== expected.timer) {
-      return systemdObservation(identity.timerName, paths.timer, RepoMirrorScheduleState.Drifted)
+      return systemdObservation(
+        identity.timerName,
+        paths.timer,
+        RepoMirrorScheduleState.Drifted
+      )
     }
     try {
       const [enabled, active] = await Promise.all([
-        this.runner.run('systemctl', ['--user', 'is-enabled', identity.timerName]),
-        this.runner.run('systemctl', ['--user', 'is-active', identity.timerName]),
+        this.runner.run('systemctl', [
+          '--user',
+          'is-enabled',
+          identity.timerName,
+        ]),
+        this.runner.run('systemctl', [
+          '--user',
+          'is-active',
+          identity.timerName,
+        ]),
       ])
       return enabled.exitCode === 0 && active.exitCode === 0
-        ? systemdObservation(identity.timerName, paths.timer, RepoMirrorScheduleState.Ready)
-        : systemdObservation(identity.timerName, paths.timer, RepoMirrorScheduleState.Unavailable)
+        ? systemdObservation(
+            identity.timerName,
+            paths.timer,
+            RepoMirrorScheduleState.Ready
+          )
+        : systemdObservation(
+            identity.timerName,
+            paths.timer,
+            RepoMirrorScheduleState.Unavailable
+          )
     } catch (error) {
       return systemdObservation(
         identity.timerName,
         paths.timer,
         RepoMirrorScheduleState.Unavailable,
-        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.message : String(error)
       )
     }
   }
 
-  private async removeSystemd(name: string): Promise<RepoMirrorSchedulerObservation> {
+  private async removeSystemd(
+    name: string
+  ): Promise<RepoMirrorSchedulerObservation> {
     const identity = await this.identity(name)
     const paths = this.systemdPaths(identity)
     const [service, timer] = await Promise.all([
@@ -390,13 +487,18 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
         identity.timerName,
         paths.timer,
         RepoMirrorScheduleState.Drifted,
-        'Refusing to remove a systemd unit that is not managed by gits.',
+        'Refusing to remove a systemd unit that is not managed by gits.'
       )
     }
     try {
-      await this.runner.run('systemctl', ['--user', 'disable', '--now', identity.timerName])
+      await this.runner.run('systemctl', [
+        '--user',
+        'disable',
+        '--now',
+        identity.timerName,
+      ])
     } catch {
-      // A missing user manager must not prevent removing the generated projection.
+      // 用户级管理器不存在时，仍应继续删除已生成的投影文件。
     }
     await Promise.all([
       rm(paths.service, { force: true }),
@@ -405,16 +507,28 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
     ])
     try {
       await this.runner.run('systemctl', ['--user', 'daemon-reload'])
-      await this.runner.run('systemctl', ['--user', 'clean', '--what=state', identity.timerName])
+      await this.runner.run('systemctl', [
+        '--user',
+        'clean',
+        '--what=state',
+        identity.timerName,
+      ])
     } catch {
-      // Desired schedule is already off; doctor can retry native cleanup later.
+      // 目标调度已经关闭，doctor 后续可以重试原生资源清理。
     }
-    return systemdObservation(identity.timerName, paths.timer, RepoMirrorScheduleState.Off)
+    return systemdObservation(
+      identity.timerName,
+      paths.timer,
+      RepoMirrorScheduleState.Off
+    )
   }
 
   private async identity(name: string): Promise<NativeJobIdentity> {
     const installationId = await this.paths.readOrCreateInstallationId()
-    const instanceKey = createHash('sha256').update(installationId).digest('hex').slice(0, 12)
+    const instanceKey = createHash('sha256')
+      .update(installationId)
+      .digest('hex')
+      .slice(0, 12)
     const stem = `${gitsExternalPersistenceRegistry.systemdRepoMirrorJobs.filePrefix}${instanceKey}-${name}`
     return {
       label: `${gitsExternalPersistenceRegistry.launchdRepoMirrorJobs.filePrefix}${instanceKey}.${name}`,
@@ -426,7 +540,7 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
   private launchdPath(label: string): string {
     return resolve(
       resolveLaunchdProjectionDirectory(this.#userHome),
-      `${label}${gitsExternalPersistenceRegistry.launchdRepoMirrorJobs.fileSuffix}`,
+      `${label}${gitsExternalPersistenceRegistry.launchdRepoMirrorJobs.fileSuffix}`
     )
   }
 
@@ -436,14 +550,20 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
     timer: string
     timerEnablement: string
   }> {
-    const directory = resolveSystemdUserUnitDirectory(this.#environment, this.#userHome)
+    const directory = resolveSystemdUserUnitDirectory(
+      this.#environment,
+      this.#userHome
+    )
     return {
       directory,
       service: resolve(directory, identity.serviceName),
       timer: resolve(directory, identity.timerName),
       timerEnablement: resolve(
-        resolveSystemdTimerEnablementDirectory(this.#environment, this.#userHome),
-        identity.timerName,
+        resolveSystemdTimerEnablementDirectory(
+          this.#environment,
+          this.#userHome
+        ),
+        identity.timerName
       ),
     }
   }
@@ -451,9 +571,11 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
 
 async function readOptional(path: string): Promise<string | null> {
   try {
-    return await readFile(path, 'utf8')
+    return await readFile(path, 'utf-8')
   } catch (error) {
-    if (hasCode(error, 'ENOENT')) return null
+    if (hasCode(error, 'ENOENT')) {
+      return null
+    }
     throw error
   }
 }
@@ -462,7 +584,7 @@ function launchdObservation(
   label: string,
   path: string,
   state: RepoMirrorSchedulerObservation['state'],
-  message: string | null = null,
+  message: string | null = null
 ): RepoMirrorSchedulerObservation {
   return {
     backend: RepoMirrorSchedulerBackend.Launchd,
@@ -477,7 +599,7 @@ function systemdObservation(
   timer: string,
   path: string,
   state: RepoMirrorSchedulerObservation['state'],
-  message: string | null = null,
+  message: string | null = null
 ): RepoMirrorSchedulerObservation {
   return {
     backend: RepoMirrorSchedulerBackend.Systemd,
@@ -488,7 +610,9 @@ function systemdObservation(
   }
 }
 
-function unsupportedObservation(message: string): RepoMirrorSchedulerObservation {
+function unsupportedObservation(
+  message: string
+): RepoMirrorSchedulerObservation {
   return {
     backend: RepoMirrorSchedulerBackend.Unsupported,
     message,
@@ -498,9 +622,15 @@ function unsupportedObservation(message: string): RepoMirrorSchedulerObservation
   }
 }
 
-function backendFor(platform: NodeJS.Platform): RepoMirrorSchedulerObservation['backend'] {
-  if (platform === 'darwin') return RepoMirrorSchedulerBackend.Launchd
-  if (platform === 'linux') return RepoMirrorSchedulerBackend.Systemd
+function backendFor(
+  platform: NodeJS.Platform
+): RepoMirrorSchedulerObservation['backend'] {
+  if (platform === 'darwin') {
+    return RepoMirrorSchedulerBackend.Launchd
+  }
+  if (platform === 'linux') {
+    return RepoMirrorSchedulerBackend.Systemd
+  }
   return RepoMirrorSchedulerBackend.Unsupported
 }
 
@@ -510,5 +640,10 @@ function nonEmpty(value: string): string | null {
 }
 
 function hasCode(error: unknown, code: string): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === code
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === code
+  )
 }

@@ -1,5 +1,5 @@
-import type { RepositoryProgressReporter } from './taskProgress'
 import type { RepoMirrorCommandOutput } from './repoMirror'
+import type { RepositoryProgressReporter } from './taskProgress'
 
 export interface InitializeTaskInput {
   readonly root: string

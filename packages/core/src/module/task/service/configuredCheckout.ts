@@ -1,10 +1,10 @@
-import {
-  RepositoryFlag,
-  type CommandError,
-  type GitOperationOptions,
-  type IGitService,
-  type RepositoryCommandResult,
-  type TaskRepository,
+import { RepositoryFlag } from '../../../contract/index'
+import type {
+  CommandError,
+  GitOperationOptions,
+  IGitService,
+  RepositoryCommandResult,
+  TaskRepository,
 } from '../../../contract/index'
 import { gitCommandError, isGitCommandSuccessful } from './gitResult'
 import { commandError } from './taskResult'
@@ -17,17 +17,29 @@ export async function validateConfiguredCheckout(
   git: IGitService,
   path: string,
   repository: Pick<TaskRepository, 'checkout'>,
-  options: GitOperationOptions = {},
+  options: GitOperationOptions = {}
 ): Promise<CommandError | null> {
-  if (repository.checkout === null) return null
+  if (repository.checkout === null) {
+    return null
+  }
 
-  const validation = await git.validateCheckoutPaths(path, repository.checkout, options)
-  const failed = validation.commands.find((command) => !isGitCommandSuccessful(command))
-  if (failed !== undefined) return gitCommandError(failed)
-  if (validation.missingPaths.length === 0) return null
+  const validation = await git.validateCheckoutPaths(
+    path,
+    repository.checkout,
+    options
+  )
+  const failed = validation.commands.find(
+    (command) => !isGitCommandSuccessful(command)
+  )
+  if (failed !== undefined) {
+    return gitCommandError(failed)
+  }
+  if (validation.missingPaths.length === 0) {
+    return null
+  }
 
   return commandError(
     'checkout-path-missing',
-    `Configured checkout ${validation.missingPaths.length === 1 ? 'directory does' : 'directories do'} not exist at HEAD: ${validation.missingPaths.join(', ')}`,
+    `Configured checkout ${validation.missingPaths.length === 1 ? 'directory does' : 'directories do'} not exist at HEAD: ${validation.missingPaths.join(', ')}`
   )
 }

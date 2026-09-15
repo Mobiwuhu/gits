@@ -1,8 +1,10 @@
 import {
   RepositoryActionResult,
   RepositoryState,
-  type CommandError,
-  type RepositoryCommandResult,
+} from '../../../contract/index'
+import type {
+  CommandError,
+  RepositoryCommandResult,
 } from '../../../contract/index'
 
 const conflictStates = new Set<RepositoryState>([
@@ -22,7 +24,7 @@ export function isConflictState(state: RepositoryState | null): boolean {
 
 export function withActionResult(
   result: RepositoryCommandResult,
-  action: RepositoryActionResult,
+  action: RepositoryActionResult
 ): RepositoryCommandResult {
   return { ...result, result: action }
 }
@@ -30,7 +32,7 @@ export function withActionResult(
 export function withCommandError(
   result: RepositoryCommandResult,
   error: CommandError,
-  action: RepositoryActionResult = RepositoryActionResult.Failed,
+  action: RepositoryActionResult = RepositoryActionResult.Failed
 ): RepositoryCommandResult {
   return { ...result, error, result: action }
 }

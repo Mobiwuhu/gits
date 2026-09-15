@@ -7,7 +7,7 @@ export class RepoMirrorConfigurationError extends GitsError {
     super(
       'repo-mirror-config-invalid',
       issues.length === 0 ? message : `${message} ${issues.join(' ')}`,
-      2,
+      2
     )
     this.name = 'RepoMirrorConfigurationError'
     this.issues = issues
@@ -33,7 +33,11 @@ export class RepoMirrorUsageError extends GitsError {
 
 export class RepoMirrorBusyError extends GitsError {
   constructor(name: string) {
-    super('repo-mirror-busy', `Repo mirror '${name}' is being used by another process.`, 1)
+    super(
+      'repo-mirror-busy',
+      `Repo mirror '${name}' is being used by another process.`,
+      1
+    )
     this.name = 'RepoMirrorBusyError'
   }
 }

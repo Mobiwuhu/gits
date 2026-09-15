@@ -7,68 +7,81 @@ const sourceRoots = [
   resolve(repositoryRoot, 'packages/core/src'),
 ]
 const violations: string[] = []
-const allSourceFiles = (await Promise.all(sourceRoots.map(listFiles))).flat().toSorted()
+const sourceFileGroups = await Promise.all(sourceRoots.map(listFiles))
+const allSourceFiles = sourceFileGroups.flat().toSorted()
 const sourceFiles = allSourceFiles.filter(isTypeScriptSource)
 const sourceSet = new Set(sourceFiles)
 const edges = new Map<string, string[]>()
 
 for (const directory of new Set(sourceFiles.map(dirname))) {
   if (!sourceSet.has(resolve(directory, 'index.ts'))) {
-    violations.push(`${display(directory)}: source directory is missing index.ts`)
+    violations.push(
+      `${display(directory)}: source directory is missing index.ts`
+    )
   }
 }
 
 for (const file of sourceFiles) {
-  const content = await readFile(file, 'utf8')
+  const content = await readFile(file, 'utf-8')
   const imports = importedSpecifiers(content)
   const resolvedImports: string[] = []
 
   if (/\bexport\s+default\b/u.test(content)) {
     violations.push(`${display(file)}: default exports are forbidden`)
   }
-  if (file.endsWith(`${sep}service${sep}index.ts`) && /^export\s+\*/mu.test(content)) {
+  if (
+    file.endsWith(`${sep}service${sep}index.ts`) &&
+    /^export\s+\*/mu.test(content)
+  ) {
     violations.push(
-      `${display(file)}: service barrels must use named exports to keep the module surface explicit`,
+      `${display(file)}: service barrels must use named exports to keep the module surface explicit`
     )
   }
   if (isServiceImplementation(file)) {
     if (/\binterface\s+[A-Za-z_$][\w$]*Dependencies\b/u.test(content)) {
       violations.push(
-        `${display(file)}: Service dependencies must stay in constructor fields, not dependency bags`,
+        `${display(file)}: Service dependencies must stay in constructor fields, not dependency bags`
       )
     }
     if (/^(?:async\s+)?function\s+execute[A-Z_$][\w$]*\s*\(/mu.test(content)) {
       violations.push(
-        `${display(file)}: Service workflows must be class methods, not detached execute functions`,
+        `${display(file)}: Service workflows must be class methods, not detached execute functions`
       )
     }
   }
-  for (const match of content.matchAll(/@(Inject|Many|Optional)\(\s*([A-Za-z_$][\w$]*)/gu)) {
-    const identifier = match[2]
+  for (const match of content.matchAll(
+    /@(?<decorator>Inject|Many|Optional)\(\s*(?<identifier>[A-Za-z_$][\w$]*)/gu
+  )) {
+    const { decorator, identifier } = match.groups ?? {}
     if (identifier !== undefined && !identifier.startsWith('I')) {
       violations.push(
-        `${display(file)}: @${match[1] ?? 'Inject'} must use an interface Identifier, got ${identifier}`,
+        `${display(file)}: @${decorator ?? 'Inject'} must use an interface Identifier, got ${identifier}`
       )
     }
   }
-  for (const match of content.matchAll(/@(Inject|Many|Optional)\([^\n]*\)\s+([^:\n]+):/gu)) {
-    const declaration = match[2] ?? ''
+  for (const match of content.matchAll(
+    /@(?<decorator>Inject|Many|Optional)\([^\n]*\)\s+(?<declaration>[^:\n]+):/gu
+  )) {
+    const { declaration, decorator } = match.groups ?? {}
     if (
-      !/\b(private|protected|public)\b/u.test(declaration) ||
+      declaration === undefined ||
+      !/\b(?:private|protected|public)\b/u.test(declaration) ||
       !/\breadonly\b/u.test(declaration)
     ) {
       violations.push(
-        `${display(file)}: @${match[1] ?? 'Inject'} parameters must be readonly constructor parameter properties`,
+        `${display(file)}: @${decorator ?? 'Inject'} parameters must be readonly constructor parameter properties`
       )
     }
   }
   if (
     /(?:\btype\s+[A-Za-z_$][\w$]*(?:<[^;=]+>)?\s*=|:\s*)\s*['"][^'"]+['"]\s*\|\s*['"][^'"]+['"]/u.test(
-      content,
+      content
     ) ||
     /^\s*\|\s*['"][^'"]+['"]/mu.test(content)
   ) {
-    violations.push(`${display(file)}: finite string unions must be declared as string enums`)
+    violations.push(
+      `${display(file)}: finite string unions must be declared as string enums`
+    )
   }
   if (
     content.includes("from '@wendellhu/redi'") &&
@@ -76,7 +89,9 @@ for (const file of sourceFiles) {
     file !== resolve(repositoryRoot, 'apps/cli/src/bootstrap/container.ts') &&
     !file.endsWith('.test.ts')
   ) {
-    violations.push(`${display(file)}: Injector may only be imported by the composition root`)
+    violations.push(
+      `${display(file)}: Injector may only be imported by the composition root`
+    )
   }
 
   for (const specifier of imports) {
@@ -88,14 +103,18 @@ for (const file of sourceFiles) {
         violations.push(`${display(file)}: Core must not depend on the CLI app`)
       }
     }
-    if (!specifier.startsWith('.')) continue
+    if (!specifier.startsWith('.')) {
+      continue
+    }
     if (/\.[cm]?[jt]sx?$/u.test(specifier)) {
       violations.push(
-        `${display(file)}: bundled TypeScript source imports must omit file extensions: ${specifier}`,
+        `${display(file)}: bundled TypeScript source imports must omit file extensions: ${specifier}`
       )
     }
     const target = resolveImport(file, specifier)
-    if (target === null || !sourceSet.has(target)) continue
+    if (target === null || !sourceSet.has(target)) {
+      continue
+    }
     resolvedImports.push(target)
     enforceDirection(file, target)
   }
@@ -110,12 +129,12 @@ detectCycles(edges)
 
 if (violations.length > 0) {
   process.stderr.write(
-    `Architecture check failed:\n${violations.map((item) => `- ${item}`).join('\n')}\n`,
+    `Architecture check failed:\n${violations.map((item) => `- ${item}`).join('\n')}\n`
   )
   process.exitCode = 1
 } else {
   process.stdout.write(
-    `Architecture check passed (${sourceFiles.length} TypeScript source files).\n`,
+    `Architecture check passed (${sourceFiles.length} TypeScript source files).\n`
   )
 }
 
@@ -133,7 +152,10 @@ async function listFiles(root: string): Promise<string[]> {
 }
 
 function isTypeScriptSource(file: string): boolean {
-  return ['.ts', '.tsx', '.mts', '.cts'].includes(extname(file)) && !file.endsWith('.d.ts')
+  return (
+    ['.ts', '.tsx', '.mts', '.cts'].includes(extname(file)) &&
+    !file.endsWith('.d.ts')
+  )
 }
 
 function isJavaScriptSource(file: string): boolean {
@@ -150,14 +172,29 @@ function isServiceImplementation(file: string): boolean {
 
 function importedSpecifiers(content: string): readonly string[] {
   const values = new Set<string>()
-  for (const match of content.matchAll(/\bfrom\s+['"]([^'"]+)['"]/gu)) {
-    if (match[1] !== undefined) values.add(match[1])
+  for (const match of content.matchAll(
+    /\bfrom\s+['"](?<specifier>[^'"]+)['"]/gu
+  )) {
+    const specifier = match.groups?.specifier
+    if (specifier !== undefined) {
+      values.add(specifier)
+    }
   }
-  for (const match of content.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/gu)) {
-    if (match[1] !== undefined) values.add(match[1])
+  for (const match of content.matchAll(
+    /\bimport\s*\(\s*['"](?<specifier>[^'"]+)['"]\s*\)/gu
+  )) {
+    const specifier = match.groups?.specifier
+    if (specifier !== undefined) {
+      values.add(specifier)
+    }
   }
-  for (const match of content.matchAll(/\bimport\s+['"]([^'"]+)['"]/gu)) {
-    if (match[1] !== undefined) values.add(match[1])
+  for (const match of content.matchAll(
+    /\bimport\s+['"](?<specifier>[^'"]+)['"]/gu
+  )) {
+    const specifier = match.groups?.specifier
+    if (specifier !== undefined) {
+      values.add(specifier)
+    }
   }
   return [...values]
 }
@@ -166,11 +203,15 @@ function resolveImport(importer: string, specifier: string): string | null {
   const candidate = resolve(dirname(importer), specifier)
   for (const extension of ['.ts', '.tsx', '.mts', '.cts']) {
     const source = `${candidate}${extension}`
-    if (sourceSet.has(source)) return source
+    if (sourceSet.has(source)) {
+      return source
+    }
   }
   for (const index of ['index.ts', 'index.tsx', 'index.mts', 'index.cts']) {
     const source = resolve(candidate, index)
-    if (sourceSet.has(source)) return source
+    if (sourceSet.has(source)) {
+      return source
+    }
   }
   return null
 }
@@ -178,12 +219,15 @@ function resolveImport(importer: string, specifier: string): string | null {
 function enforceDirection(importer: string, target: string): void {
   const importerPath = display(importer)
   const targetPath = display(target)
-  const packageRoot = importerPath.startsWith('packages/core/')
-    ? 'packages/core/src/'
-    : importerPath.startsWith('apps/cli/')
-      ? 'apps/cli/src/'
-      : null
-  if (packageRoot === null) return
+  let packageRoot: string | null = null
+  if (importerPath.startsWith('packages/core/')) {
+    packageRoot = 'packages/core/src/'
+  } else if (importerPath.startsWith('apps/cli/')) {
+    packageRoot = 'apps/cli/src/'
+  }
+  if (packageRoot === null) {
+    return
+  }
 
   if (importerPath.startsWith(`${packageRoot}contract/`)) {
     for (const forbidden of ['service/', 'module/', 'bootstrap/']) {
@@ -197,7 +241,9 @@ function enforceDirection(importer: string, target: string): void {
     importerPath.startsWith(`${packageRoot}service/`) &&
     targetPath.startsWith(`${packageRoot}module/`)
   ) {
-    violations.push(`${importerPath}: root service cannot import business module ${targetPath}`)
+    violations.push(
+      `${importerPath}: root service cannot import business module ${targetPath}`
+    )
   }
   if (
     importerPath.startsWith('packages/core/src/module/repoMirror/') &&
@@ -214,7 +260,9 @@ function detectCycles(graph: ReadonlyMap<string, readonly string[]>): void {
   const stack: string[] = []
 
   const visit = (file: string): void => {
-    if (visited.has(file)) return
+    if (visited.has(file)) {
+      return
+    }
     if (visiting.has(file)) {
       const start = stack.indexOf(file)
       const cycle = [...stack.slice(start), file].map(display).join(' -> ')
@@ -223,13 +271,17 @@ function detectCycles(graph: ReadonlyMap<string, readonly string[]>): void {
     }
     visiting.add(file)
     stack.push(file)
-    for (const target of graph.get(file) ?? []) visit(target)
+    for (const target of graph.get(file) ?? []) {
+      visit(target)
+    }
     stack.pop()
     visiting.delete(file)
     visited.add(file)
   }
 
-  for (const file of graph.keys()) visit(file)
+  for (const file of graph.keys()) {
+    visit(file)
+  }
 }
 
 function display(path: string): string {

@@ -5,29 +5,30 @@ import { Inject } from '@wendellhu/redi'
 
 import {
   IGitService,
-  type IInitializeTaskService,
   RepositoryActionResult,
   ITaskConfigurationService,
   ITaskScaffoldService,
   ITaskTemplateImportService,
-  type InitializeTaskInput,
+  initialRepositoryResult,
+} from '../../../contract/index'
+import type {
+  IInitializeTaskService,
+  InitializeTaskInput,
+  CommandOutput,
+  RepositoryCommandResult,
+  TaskConfiguration,
 } from '../../../contract/index'
 import { loadTaskConfiguration } from './loadTaskConfiguration'
-import {
-  initialRepositoryResult,
-  type CommandOutput,
-  type RepositoryCommandResult,
-  type TaskConfiguration,
-} from '../../../contract/index'
 
 export class InitializeTaskService implements IInitializeTaskService {
   constructor(
     @Inject(ITaskConfigurationService)
     private readonly configurationStore: ITaskConfigurationService,
     @Inject(IGitService) private readonly git: IGitService,
-    @Inject(ITaskScaffoldService) private readonly scaffold: ITaskScaffoldService,
+    @Inject(ITaskScaffoldService)
+    private readonly scaffold: ITaskScaffoldService,
     @Inject(ITaskTemplateImportService)
-    private readonly templateImporter: ITaskTemplateImportService,
+    private readonly templateImporter: ITaskTemplateImportService
   ) {}
 
   async execute(input: InitializeTaskInput): Promise<CommandOutput> {
@@ -42,7 +43,10 @@ export class InitializeTaskService implements IInitializeTaskService {
       root: sourceRoot,
       ...(input.signal ? { signal: input.signal } : {}),
     })
-    const configuration = await this.templateImporter.importTemplate(sourceRoot, input.root)
+    const configuration = await this.templateImporter.importTemplate(
+      sourceRoot,
+      input.root
+    )
     await this.scaffold.ensure(input.root)
 
     return {
@@ -65,7 +69,7 @@ export class InitializeTaskService implements IInitializeTaskService {
   }
 
   private importedRepositories(
-    configuration: TaskConfiguration,
+    configuration: TaskConfiguration
   ): readonly RepositoryCommandResult[] {
     return configuration.repositories.map((repository) => ({
       ...initialRepositoryResult(repository),

@@ -1,4 +1,5 @@
-import { createIdentifier, type IdentifierDecorator } from '@wendellhu/redi'
+import { createIdentifier } from '@wendellhu/redi'
+import type { IdentifierDecorator } from '@wendellhu/redi'
 
 import type {
   ConcurrentRunnerOptions,
@@ -11,7 +12,7 @@ export interface IConcurrencyService {
   run<T, R>(
     items: readonly T[],
     worker: ConcurrentWorker<T, R>,
-    options?: ConcurrentRunnerOptions<T, R>,
+    options?: ConcurrentRunnerOptions<T, R>
   ): Promise<ConcurrentRunSummary<T, R>>
 }
 

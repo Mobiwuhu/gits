@@ -92,23 +92,23 @@ gits repo-mirrors logs frontend        # 查看结构化运行日志
 
 调研信息截至 2026-09-10。cron 解析、并发控制、跨进程锁、结构化日志和 CLI 表格都有可直接采用的开源库；缺口仅在原生持久化调度：目前没有一个成熟 JS 库同时完整覆盖 macOS LaunchAgent 与 Linux systemd user timer 的注册、更新、删除、状态检查和故障恢复。因此本提案只为两个原生 scheduler 保留薄 adapter，其余通用能力尽量复用开源实现。
 
-| 项目                                                                                                          | 能力                                                        | 适用性判断                                                                                                                                                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`cron-parser`](https://github.com/harrisiirak/cron-parser)                                                   | TypeScript cron 解析、字段操作、时区/DST 和前后执行时间计算 | 建议采用。只负责纯计算，不负责持久化或启动任务，职责边界正好                                                                                                                                                                                  |
-| [`p-map`](https://github.com/sindresorhus/p-map)                                                              | 对 async mapper 做受限并发、保序和取消                      | 调研后不采用。其 signal 会使外层立即以 `AbortError` 拒绝，而已启动 mapper 仍继续；要保持现有“停止派发、等待在途任务、未启动项为 not-run”契约仍需保留大部分自有协调代码                                                                        |
-| [`@bybrave/proper-lockfile2`](https://github.com/bybraveHQ/proper-lockfile2)                                  | 跨进程/跨机器文件锁、原子 `mkdir`、heartbeat、stale 和重试  | 建议采用。它是 `proper-lockfile` 的维护兼容 fork，修复 stale reclaim 双持锁竞态、内置 TypeScript 类型和 Node 22 CI；仍需精确锁版本并做 macOS/Linux 休眠与压力测试                                                                             |
-| [`fs-ext`](https://github.com/baudehlo/node-fs-ext)                                                           | Unix `flock(2)`/`fcntl(2)` advisory lock                    | 作为兼容测试失败时的备选；进程退出和休眠语义更接近 OS lock，但引入 native addon 构建与跨 Node ABI 分发成本，且不适合网络文件系统                                                                                                              |
-| [`pino`](https://github.com/pinojs/pino)                                                                      | 结构化 JSON 日志                                            | 建议采用，以 in-process destination 向每次唯一 run 文件写入；不使用 worker transport，也不让多个短生命周期进程共享一个待轮转文件                                                                                                              |
-| [`pino-roll`](https://github.com/mcollina/pino-roll)                                                          | 单进程日志文件轮转                                          | 调研后不采用。其默认 retention 只统计当前进程创建的文件，多短进程共享同一文件还会与 native stdout writer 竞争；结构化日志用唯一 run 文件，应用依赖加载前的 emergency log 则由稳定 runner 以 Node `fs` 做 1 MiB 定长写入和两个备份，边界更明确 |
-| [`table`](https://github.com/gajus/table)                                                                     | 把二维数据渲染成文本表格，支持全角字符、ANSI、列宽和换行    | 建议采用。返回字符串，能直接接入当前 presenter；使用无边框样式保持现有紧凑输出，由薄 facade 固定 TTY/pipe、长字段与 snapshot 语义                                                                                                             |
-| [`listr2`](https://github.com/listr2/listr2)                                                                  | 并行任务列表、每任务输出流、TTY 重绘和非 TTY renderer       | 建议采用。TTY 下每个仓库使用固定任务行并接管对应 Git stdout/stderr；agent、JSON 和非 TTY 模式禁用动态 renderer，最终领域结果仍交给 Incur                                                                                                      |
-| [`cli-table3`](https://github.com/cli-table/cli-table3)                                                       | 轻量 CLI 表格、ANSI-aware 截断、对齐和自定义边框            | 可用备选，但主要 API 仍是 CommonJS 风格的可变 Table；本项目由 tsdown 生成 Node ESM，`table` 的具名函数和现有纯 formatter 更贴合                                                                                                               |
-| [`@oclif/table`](https://github.com/oclif/table)                                                              | TypeScript-first 表格、自动终端宽度、Ink/CI renderer        | 功能完整但 v1 会引入 Ink、React 等较重运行时，而本项目使用 Incur 且只需要确定性的字符串 renderer，暂不采用                                                                                                                                    |
-| [`plist`](https://github.com/TooTallNate/plist.js)                                                            | 从 JavaScript 对象生成 Apple XML property list              | 建议采用。v5 是带内置类型的 TypeScript 实现；用它负责 XML 编码和转义，再用 macOS 自带 `plutil -lint` 做平台校验，不手拼 plist XML                                                                                                             |
-| [`unitup`](https://github.com/litepacks/unitup)                                                               | 可编程的跨平台 service manager，并公开 JS API               | 可参考 service adapter 结构，但其定时器文档明确是 systemd/Linux 能力，不能解决 macOS 定时任务                                                                                                                                                 |
-| [`opencode-scheduler`](https://github.com/different-ai/opencode-scheduler)                                    | 已落地 launchd/systemd 的跨平台任务调度                     | 可参考产物、日志和恢复设计；它是面向 OpenCode 的应用插件，不是稳定的通用 scheduler library，且部分 macOS 实现仍兼容旧式 `launchctl load/unload`                                                                                               |
-| [`@minagents/wua`](https://github.com/minhvoio/wua_wake-up-ai)                                                | 有独立 launchd/systemd adapter，并采用现代 `bootstrap` 流程 | 可参考目录拆分和跨平台测试；当前只覆盖较固定的每日唤醒场景，不足以承载本 CLI 的 cron/CRUD 语义                                                                                                                                                |
-| [`node-schedule`](https://www.npmjs.com/package/node-schedule)、[`croner`](https://github.com/Hexagon/croner) | Node 进程内定时                                             | 不采用。进程退出后任务消失，不能满足持久化要求                                                                                                                                                                                                |
+| 项目 | 能力 | 适用性判断 |
+| --- | --- | --- |
+| [`cron-parser`](https://github.com/harrisiirak/cron-parser) | TypeScript cron 解析、字段操作、时区/DST 和前后执行时间计算 | 建议采用。只负责纯计算，不负责持久化或启动任务，职责边界正好 |
+| [`p-map`](https://github.com/sindresorhus/p-map) | 对 async mapper 做受限并发、保序和取消 | 调研后不采用。其 signal 会使外层立即以 `AbortError` 拒绝，而已启动 mapper 仍继续；要保持现有“停止派发、等待在途任务、未启动项为 not-run”契约仍需保留大部分自有协调代码 |
+| [`@bybrave/proper-lockfile2`](https://github.com/bybraveHQ/proper-lockfile2) | 跨进程/跨机器文件锁、原子 `mkdir`、heartbeat、stale 和重试 | 建议采用。它是 `proper-lockfile` 的维护兼容 fork，修复 stale reclaim 双持锁竞态、内置 TypeScript 类型和 Node 22 CI；仍需精确锁版本并做 macOS/Linux 休眠与压力测试 |
+| [`fs-ext`](https://github.com/baudehlo/node-fs-ext) | Unix `flock(2)`/`fcntl(2)` advisory lock | 作为兼容测试失败时的备选；进程退出和休眠语义更接近 OS lock，但引入 native addon 构建与跨 Node ABI 分发成本，且不适合网络文件系统 |
+| [`pino`](https://github.com/pinojs/pino) | 结构化 JSON 日志 | 建议采用，以 in-process destination 向每次唯一 run 文件写入；不使用 worker transport，也不让多个短生命周期进程共享一个待轮转文件 |
+| [`pino-roll`](https://github.com/mcollina/pino-roll) | 单进程日志文件轮转 | 调研后不采用。其默认 retention 只统计当前进程创建的文件，多短进程共享同一文件还会与 native stdout writer 竞争；结构化日志用唯一 run 文件，应用依赖加载前的 emergency log 则由稳定 runner 以 Node `fs` 做 1 MiB 定长写入和两个备份，边界更明确 |
+| [`table`](https://github.com/gajus/table) | 把二维数据渲染成文本表格，支持全角字符、ANSI、列宽和换行 | 建议采用。返回字符串，能直接接入当前 presenter；使用无边框样式保持现有紧凑输出，由薄 facade 固定 TTY/pipe、长字段与 snapshot 语义 |
+| [`listr2`](https://github.com/listr2/listr2) | 并行任务列表、每任务输出流、TTY 重绘和非 TTY renderer | 建议采用。TTY 下每个仓库使用固定任务行并接管对应 Git stdout/stderr；agent、JSON 和非 TTY 模式禁用动态 renderer，最终领域结果仍交给 Incur |
+| [`cli-table3`](https://github.com/cli-table/cli-table3) | 轻量 CLI 表格、ANSI-aware 截断、对齐和自定义边框 | 可用备选，但主要 API 仍是 CommonJS 风格的可变 Table；本项目由 tsdown 生成 Node ESM，`table` 的具名函数和现有纯 formatter 更贴合 |
+| [`@oclif/table`](https://github.com/oclif/table) | TypeScript-first 表格、自动终端宽度、Ink/CI renderer | 功能完整但 v1 会引入 Ink、React 等较重运行时，而本项目使用 Incur 且只需要确定性的字符串 renderer，暂不采用 |
+| [`plist`](https://github.com/TooTallNate/plist.js) | 从 JavaScript 对象生成 Apple XML property list | 建议采用。v5 是带内置类型的 TypeScript 实现；用它负责 XML 编码和转义，再用 macOS 自带 `plutil -lint` 做平台校验，不手拼 plist XML |
+| [`unitup`](https://github.com/litepacks/unitup) | 可编程的跨平台 service manager，并公开 JS API | 可参考 service adapter 结构，但其定时器文档明确是 systemd/Linux 能力，不能解决 macOS 定时任务 |
+| [`opencode-scheduler`](https://github.com/different-ai/opencode-scheduler) | 已落地 launchd/systemd 的跨平台任务调度 | 可参考产物、日志和恢复设计；它是面向 OpenCode 的应用插件，不是稳定的通用 scheduler library，且部分 macOS 实现仍兼容旧式 `launchctl load/unload` |
+| [`@minagents/wua`](https://github.com/minhvoio/wua_wake-up-ai) | 有独立 launchd/systemd adapter，并采用现代 `bootstrap` 流程 | 可参考目录拆分和跨平台测试；当前只覆盖较固定的每日唤醒场景，不足以承载本 CLI 的 cron/CRUD 语义 |
+| [`node-schedule`](https://www.npmjs.com/package/node-schedule)、[`croner`](https://github.com/Hexagon/croner) | Node 进程内定时 | 不采用。进程退出后任务消失，不能满足持久化要求 |
 
 ### 3.1 依赖决策
 
@@ -139,18 +139,18 @@ plist           macOS LaunchAgent plist 序列化
 
 原 PRD 仍可作为需求背景，但以下内容不建议照搬：
 
-| 原方向                                                       | 本提案                                                                                                    | 原因                                                                             |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| 顶层 `ref` 与 `schedule` 两类资源                            | 唯一命令组 `repo-mirrors`，schedule 是 mirror 属性                                                        | 用户操作的是仓库镜像；独立 schedule 会产生名称关联、级联删除和状态漂移           |
-| 配置分散在 `~/.config/<cli>`，Linux mirror 默认放 `/var/lib` | 用户意图和数据统一在 `~/.gits`                                                                            | 普通用户无需提权，备份、迁移和排障路径一致                                       |
-| 所有文件都放 `~/.gits`                                       | 仅 source of truth 放 `~/.gits`；OS 投影放原生扫描目录                                                    | launchd/systemd 不会从任意目录自动发现用户任务                                   |
-| 从 `launchctl list` 获取 next run                            | 根据保存的 cron 自行计算下一次执行时间                                                                    | `launchctl list` 的稳定字段只有 PID、上次退出状态和 label，并不提供 next-run     |
-| macOS 使用 `launchctl load/unload`                           | 使用 `bootstrap/bootout/print`，仅用 `enable` 清理旧 disabled override                                    | 采用现代 launchctl 接口，off 不额外写入持久禁用状态                              |
-| 用 `flock` 避免重入                                          | 使用跨平台的 `@bybrave/proper-lockfile2`                                                                  | stock macOS 不保证提供 `flock` 命令，也无需自研 heartbeat/stale lock             |
-| 设置 `gc.auto=0` 就足够                                      | fetch 明确传 `--no-auto-maintenance`，并设置 `maintenance.auto=false`、`gc.auto=0`、`gc.autoDetach=false` | Git fetch 默认可能触发 auto maintenance；仅关闭 auto-gc 不能完整表达“不自动维护” |
-| 自动打开 Linux linger                                        | `doctor` 只检测并给出建议                                                                                 | linger 是机器策略，可能需要权限，也不应由普通 CRUD 隐式修改                      |
-| schedule 配置保存 last/next 状态                             | 配置只保存稳定意图；运行状态单独保存                                                                      | 避免配置文件被每次运行改写，也避免缓存状态被误认为事实                           |
-| 提供单独的 reference clone 命令                              | 现有 `install` 自动发现 mirror 并安全降级                                                                 | 减少命令概念，用户不需要理解 Git alternates                                      |
+| 原方向 | 本提案 | 原因 |
+| --- | --- | --- |
+| 顶层 `ref` 与 `schedule` 两类资源 | 唯一命令组 `repo-mirrors`，schedule 是 mirror 属性 | 用户操作的是仓库镜像；独立 schedule 会产生名称关联、级联删除和状态漂移 |
+| 配置分散在 `~/.config/<cli>`，Linux mirror 默认放 `/var/lib` | 用户意图和数据统一在 `~/.gits` | 普通用户无需提权，备份、迁移和排障路径一致 |
+| 所有文件都放 `~/.gits` | 仅 source of truth 放 `~/.gits`；OS 投影放原生扫描目录 | launchd/systemd 不会从任意目录自动发现用户任务 |
+| 从 `launchctl list` 获取 next run | 根据保存的 cron 自行计算下一次执行时间 | `launchctl list` 的稳定字段只有 PID、上次退出状态和 label，并不提供 next-run |
+| macOS 使用 `launchctl load/unload` | 使用 `bootstrap/bootout/print`，仅用 `enable` 清理旧 disabled override | 采用现代 launchctl 接口，off 不额外写入持久禁用状态 |
+| 用 `flock` 避免重入 | 使用跨平台的 `@bybrave/proper-lockfile2` | stock macOS 不保证提供 `flock` 命令，也无需自研 heartbeat/stale lock |
+| 设置 `gc.auto=0` 就足够 | fetch 明确传 `--no-auto-maintenance`，并设置 `maintenance.auto=false`、`gc.auto=0`、`gc.autoDetach=false` | Git fetch 默认可能触发 auto maintenance；仅关闭 auto-gc 不能完整表达“不自动维护” |
+| 自动打开 Linux linger | `doctor` 只检测并给出建议 | linger 是机器策略，可能需要权限，也不应由普通 CRUD 隐式修改 |
+| schedule 配置保存 last/next 状态 | 配置只保存稳定意图；运行状态单独保存 | 避免配置文件被每次运行改写，也避免缓存状态被误认为事实 |
+| 提供单独的 reference clone 命令 | 现有 `install` 自动发现 mirror 并安全降级 | 减少命令概念，用户不需要理解 Git alternates |
 
 ## 5. 领域模型
 
@@ -211,7 +211,8 @@ interface GitsConfigV1 {
 ```ts
 type RepositoryState = 'initializing' | 'ready' | 'missing' | 'invalid'
 type ScheduleState = 'off' | 'ready' | 'unavailable' | 'drifted'
-type LastRunStatus = 'never' | 'running' | 'success' | 'failed' | 'interrupted' | 'skipped-locked'
+type LastRunStatus =
+  'never' | 'running' | 'success' | 'failed' | 'interrupted' | 'skipped-locked'
 ```
 
 例如一个 mirror 可以同时是 `repository=ready`、`schedule=drifted`、`lastRun=success`。这样用户能明确知道是仓库坏了，还是仅调度投影需要修复。
@@ -303,13 +304,22 @@ JSON 不复用现有面向任务仓库的 `repos` 字段：
   "mirrors": [
     {
       "name": "frontend",
-      "urls": ["git@code.byted.org:acme/frontend.git", "https://code.byted.org/acme/frontend.git"],
+      "urls": [
+        "git@code.byted.org:acme/frontend.git",
+        "https://code.byted.org/acme/frontend.git"
+      ],
       "fetchUrl": "git@code.byted.org:acme/frontend.git",
       "path": "/Users/alice/.gits/repo-mirrors/frontend.git",
       "fetchCommand": "/usr/bin/env HOME=/Users/alice GITS_HOME=/Users/alice/.gits GITS_GIT_EXECUTABLE=/usr/bin/git GIT_TERMINAL_PROMPT=0 PATH=/usr/bin:/bin:/usr/sbin:/sbin /Users/alice/.gits/bin/gits-repo-mirror-runner repo-mirrors fetch frontend --source scheduler",
       "fetchInvocation": {
         "executable": "/Users/alice/.gits/bin/gits-repo-mirror-runner",
-        "arguments": ["repo-mirrors", "fetch", "frontend", "--source", "scheduler"],
+        "arguments": [
+          "repo-mirrors",
+          "fetch",
+          "frontend",
+          "--source",
+          "scheduler"
+        ],
         "environment": {
           "HOME": "/Users/alice",
           "GITS_HOME": "/Users/alice/.gits",
@@ -402,7 +412,10 @@ JSON 不复用现有面向任务仓库的 `repos` 字段：
   "repoMirrors": [
     {
       "name": "frontend",
-      "urls": ["git@code.byted.org:acme/frontend.git", "https://code.byted.org/acme/frontend.git"],
+      "urls": [
+        "git@code.byted.org:acme/frontend.git",
+        "https://code.byted.org/acme/frontend.git",
+      ],
       "schedule": {
         "cron": "17 1-23/6 * * *",
       },
@@ -890,14 +903,20 @@ apps/cli/src/
 
 ```ts
 export interface IRepoMirrorSchedulerService {
-  apply(definition: RepoMirrorDefinition): Promise<RepoMirrorSchedulerObservation>
-  inspect(definition: RepoMirrorDefinition): Promise<RepoMirrorSchedulerObservation>
+  apply(
+    definition: RepoMirrorDefinition
+  ): Promise<RepoMirrorSchedulerObservation>
+  inspect(
+    definition: RepoMirrorDefinition
+  ): Promise<RepoMirrorSchedulerObservation>
   invocation(name: string): RepoMirrorScheduledInvocation
   remove(name: string): Promise<RepoMirrorSchedulerObservation>
 }
 
 export const IRepoMirrorSchedulerService: IdentifierDecorator<IRepoMirrorSchedulerService> =
-  createIdentifier<IRepoMirrorSchedulerService>('core.repoMirrorSchedulerService')
+  createIdentifier<IRepoMirrorSchedulerService>(
+    'core.repoMirrorSchedulerService'
+  )
 ```
 
 cron 到 scheduled job 的编译、next-run 计算和 fetch command 生成留在 repoMirror 模块；操作系统命令与文件系统能力分别通过 `IProcessService` 和 `IFileSystemService` 注入。调用方只依赖 `IRepoMirrorSchedulerService`，不依赖具体实现类。

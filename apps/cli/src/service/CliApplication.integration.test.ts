@@ -1,14 +1,24 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
+import { describe, it } from 'node:test'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
-import { describe, it } from 'node:test'
 
 const executeFile = promisify(execFile)
-const repositoryRoot = resolve(dirname(new URL(import.meta.url).pathname), '../../../..')
+const repositoryRoot = resolve(
+  dirname(new URL(import.meta.url).pathname),
+  '../../../..'
+)
 const cliEntry = resolve(repositoryRoot, 'apps/cli/src/index.ts')
 
 interface CommandResponse {
@@ -45,8 +55,8 @@ interface JsonCommandOutput {
   }[]
 }
 
-describe('gits CLI', () => {
-  it('creates an idempotent scaffold and reports incomplete configuration before Git work', async () => {
+void describe('gits CLI', () => {
+  void it('creates an idempotent scaffold and reports incomplete configuration before Git work', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'gits-init-test-'))
     const task = resolve(root, 'task')
     await mkdir(task)
@@ -55,29 +65,53 @@ describe('gits CLI', () => {
       const initialized = await gits(['-C', task, 'init', '--json'])
       assert.equal(initialized.code, 0)
       assert.deepEqual(parseOutput(initialized).repos, [])
-      assert.match(await readFile(resolve(task, 'AGENTS.md'), 'utf8'), /临时任务工作区/u)
-      assert.match(await readFile(resolve(task, 'docs/AGENTS.md'), 'utf8'), /任务范围内的知识/u)
-      assert.match(await readFile(resolve(task, 'scripts/AGENTS.md'), 'utf8'), /可复用自动化脚本/u)
-      assert.match(await readFile(resolve(task, 'repos/AGENTS.md'), 'utf8'), /独立 Git 仓库/u)
+      assert.match(
+        await readFile(resolve(task, 'AGENTS.md'), 'utf-8'),
+        /临时任务工作区/u
+      )
+      assert.match(
+        await readFile(resolve(task, 'docs/AGENTS.md'), 'utf-8'),
+        /任务范围内的知识/u
+      )
+      assert.match(
+        await readFile(resolve(task, 'scripts/AGENTS.md'), 'utf-8'),
+        /可复用自动化脚本/u
+      )
+      assert.match(
+        await readFile(resolve(task, 'repos/AGENTS.md'), 'utf-8'),
+        /独立 Git 仓库/u
+      )
 
       await writeFile(resolve(task, 'AGENTS.md'), 'preserve this content\n')
-      await writeFile(resolve(task, 'docs/AGENTS.md'), 'preserve docs content\n')
-      await writeFile(resolve(task, 'scripts/AGENTS.md'), 'preserve scripts content\n')
-      await writeFile(resolve(task, 'repos/AGENTS.md'), 'preserve repos content\n')
+      await writeFile(
+        resolve(task, 'docs/AGENTS.md'),
+        'preserve docs content\n'
+      )
+      await writeFile(
+        resolve(task, 'scripts/AGENTS.md'),
+        'preserve scripts content\n'
+      )
+      await writeFile(
+        resolve(task, 'repos/AGENTS.md'),
+        'preserve repos content\n'
+      )
       const repeated = await gits(['-C', task, 'init', '--json'])
       assert.equal(repeated.code, 0)
-      assert.equal(await readFile(resolve(task, 'AGENTS.md'), 'utf8'), 'preserve this content\n')
       assert.equal(
-        await readFile(resolve(task, 'docs/AGENTS.md'), 'utf8'),
-        'preserve docs content\n',
+        await readFile(resolve(task, 'AGENTS.md'), 'utf-8'),
+        'preserve this content\n'
       )
       assert.equal(
-        await readFile(resolve(task, 'scripts/AGENTS.md'), 'utf8'),
-        'preserve scripts content\n',
+        await readFile(resolve(task, 'docs/AGENTS.md'), 'utf-8'),
+        'preserve docs content\n'
       )
       assert.equal(
-        await readFile(resolve(task, 'repos/AGENTS.md'), 'utf8'),
-        'preserve repos content\n',
+        await readFile(resolve(task, 'scripts/AGENTS.md'), 'utf-8'),
+        'preserve scripts content\n'
+      )
+      assert.equal(
+        await readFile(resolve(task, 'repos/AGENTS.md'), 'utf-8'),
+        'preserve repos content\n'
       )
 
       const incomplete = await gits(['-C', task, 'status', '--json'])
@@ -87,7 +121,14 @@ describe('gits CLI', () => {
       assert.equal(output.repos[0]?.state, null)
       assert.equal(output.repos[0]?.error?.code, 'config-incomplete')
 
-      const invalidJobs = await gits(['-C', task, 'fetch', '--jobs', 'not-a-number', '--json'])
+      const invalidJobs = await gits([
+        '-C',
+        task,
+        'fetch',
+        '--jobs',
+        'not-a-number',
+        '--json',
+      ])
       assert.equal(invalidJobs.code, 2)
       assert.equal(parseOutput(invalidJobs).command, 'fetch')
 
@@ -104,7 +145,7 @@ describe('gits CLI', () => {
     }
   })
 
-  it('installs, switches, and pushes a task branch through -C', async () => {
+  void it('installs, switches, and pushes a task branch through -C', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'gits-workflow-test-'))
 
     try {
@@ -117,10 +158,11 @@ describe('gits CLI', () => {
       const installed = await gits(['-C', task, 'install', '--json'])
       assert.equal(installed.code, 0)
       assert.equal(parseOutput(installed).repos[0]?.state, 'local-only')
-      assert.notEqual(
-        (await git(['rev-parse', '--abbrev-ref', '@{upstream}'], resolve(task, 'repos/api'))).code,
-        0,
+      const initialUpstream = await git(
+        ['rev-parse', '--abbrev-ref', '@{upstream}'],
+        resolve(task, 'repos/api')
       )
+      assert.notEqual(initialUpstream.code, 0)
 
       const nestedDirectory = resolve(task, 'docs/nested')
       await mkdir(nestedDirectory, { recursive: true })
@@ -131,19 +173,24 @@ describe('gits CLI', () => {
       const pushed = await gits(['-C', task, 'push', 'api', '--json'])
       assert.equal(pushed.code, 0)
       assert.equal(parseOutput(pushed).repos[0]?.state, 'synced-local')
-      assert.equal(
-        (
-          await git(
-            ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'],
-            resolve(task, 'repos/api'),
-          )
-        ).stdout.trim(),
-        'origin/feat/task-1',
+      const pushedUpstream = await git(
+        ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'],
+        resolve(task, 'repos/api')
       )
+      assert.equal(pushedUpstream.stdout.trim(), 'origin/feat/task-1')
 
-      await git(['config', 'user.email', 'gits@test.invalid'], resolve(task, 'repos/api'))
-      await git(['config', 'user.name', 'gits-test'], resolve(task, 'repos/api'))
-      await git(['commit', '--allow-empty', '-m', 'follow-up'], resolve(task, 'repos/api'))
+      await git(
+        ['config', 'user.email', 'gits@test.invalid'],
+        resolve(task, 'repos/api')
+      )
+      await git(
+        ['config', 'user.name', 'gits-test'],
+        resolve(task, 'repos/api')
+      )
+      await git(
+        ['commit', '--allow-empty', '-m', 'follow-up'],
+        resolve(task, 'repos/api')
+      )
       const ahead = await gits(['-C', task, 'status', '--json'])
       assert.equal(ahead.code, 0)
       assert.equal(parseOutput(ahead).repos[0]?.state, 'ahead')
@@ -157,18 +204,30 @@ describe('gits CLI', () => {
       await writeFile(resolve(task, 'repos/api/scratch.txt'), 'dirty\n')
       const refusedSwitch = await gits(['-C', task, 'switch', '--json'])
       assert.equal(refusedSwitch.code, 1)
-      assert.equal(parseOutput(refusedSwitch).repos[0]?.error?.code, 'dirty-worktree')
+      assert.equal(
+        parseOutput(refusedSwitch).repos[0]?.error?.code,
+        'dirty-worktree'
+      )
 
-      const stashedSwitch = await gits(['-C', task, 'switch', '--stash', '--json'])
+      const stashedSwitch = await gits([
+        '-C',
+        task,
+        'switch',
+        '--stash',
+        '--json',
+      ])
       assert.equal(stashedSwitch.code, 0)
       assert.equal(parseOutput(stashedSwitch).repos[0]?.state, 'synced-local')
-      await git(['rev-parse', '--verify', 'refs/stash'], resolve(task, 'repos/api'))
+      await git(
+        ['rev-parse', '--verify', 'refs/stash'],
+        resolve(task, 'repos/api')
+      )
     } finally {
       await rm(root, { force: true, recursive: true })
     }
   })
 
-  it('installs, reports, switches, and safely reconciles checkout directories', async () => {
+  void it('installs, reports, switches, and safely reconciles checkout directories', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'gits-sparse-checkout-test-'))
 
     try {
@@ -181,47 +240,74 @@ describe('gits CLI', () => {
 
       const installed = await gits(['-C', task, 'install', '--json'])
       assert.equal(installed.code, 0, installed.stderr)
-      const installedRepository = parseOutput(installed).repos[0]
+      const [installedRepository] = parseOutput(installed).repos
       assert.deepEqual(installedRepository?.expected.checkout, ['knowledge'])
       assert.deepEqual(installedRepository?.actual.checkout, ['knowledge'])
       await access(resolve(repository, 'knowledge/guide.md'))
-      await assert.rejects(() => access(resolve(repository, 'other/application.txt')))
-      assert.equal((await git(['sparse-checkout', 'list'], repository)).stdout.trim(), 'knowledge')
+      await assert.rejects(async () =>
+        access(resolve(repository, 'other/application.txt'))
+      )
+      const installedCheckout = await git(
+        ['sparse-checkout', 'list'],
+        repository
+      )
+      assert.equal(installedCheckout.stdout.trim(), 'knowledge')
 
-      await git(['sparse-checkout', 'set', '--cone', '--no-sparse-index', 'other'], repository)
+      await git(
+        ['sparse-checkout', 'set', '--cone', '--no-sparse-index', 'other'],
+        repository
+      )
       const drifted = await gits(['-C', task, 'status', '--json'])
       assert.equal(drifted.code, 1)
-      assert.ok(parseOutput(drifted).repos[0]?.flags.includes('checkout-different'))
+      assert.equal(
+        parseOutput(drifted).repos[0]?.flags.includes('checkout-different'),
+        true
+      )
 
       const reconciled = await gits(['-C', task, 'install', '--json'])
       assert.equal(reconciled.code, 0, reconciled.stderr)
       assert.equal(parseOutput(reconciled).repos[0]?.result, 'success')
       await access(resolve(repository, 'knowledge/guide.md'))
-      await assert.rejects(() => access(resolve(repository, 'other/application.txt')))
+      await assert.rejects(async () =>
+        access(resolve(repository, 'other/application.txt'))
+      )
 
-      await git(['sparse-checkout', 'set', '--cone', '--no-sparse-index', 'other'], repository)
+      await git(
+        ['sparse-checkout', 'set', '--cone', '--no-sparse-index', 'other'],
+        repository
+      )
       const switched = await gits(['-C', task, 'switch', '--json'])
       assert.equal(switched.code, 0, switched.stderr)
-      assert.deepEqual(parseOutput(switched).repos[0]?.actual.checkout, ['knowledge'])
+      assert.deepEqual(parseOutput(switched).repos[0]?.actual.checkout, [
+        'knowledge',
+      ])
       await access(resolve(repository, 'knowledge/guide.md'))
 
-      await writeFile(resolve(repository, 'knowledge/guide.md'), 'locally modified\n')
+      await writeFile(
+        resolve(repository, 'knowledge/guide.md'),
+        'locally modified\n'
+      )
       await writeTaskConfiguration(task, remote, ['other'])
       const dirty = await gits(['-C', task, 'install', '--json'])
       assert.equal(dirty.code, 1)
       assert.equal(parseOutput(dirty).repos[0]?.error?.code, 'dirty-worktree')
       assert.equal(
-        await readFile(resolve(repository, 'knowledge/guide.md'), 'utf8'),
-        'locally modified\n',
+        await readFile(resolve(repository, 'knowledge/guide.md'), 'utf-8'),
+        'locally modified\n'
       )
-      assert.equal((await git(['sparse-checkout', 'list'], repository)).stdout.trim(), 'knowledge')
+      const dirtyCheckout = await git(['sparse-checkout', 'list'], repository)
+      assert.equal(dirtyCheckout.stdout.trim(), 'knowledge')
 
       await git(['reset', '--hard', 'HEAD'], repository)
       await writeTaskConfiguration(task, remote, ['missing-directory'])
       const missing = await gits(['-C', task, 'install', '--json'])
       assert.equal(missing.code, 1)
-      assert.equal(parseOutput(missing).repos[0]?.error?.code, 'checkout-path-missing')
-      assert.equal((await git(['sparse-checkout', 'list'], repository)).stdout.trim(), 'knowledge')
+      assert.equal(
+        parseOutput(missing).repos[0]?.error?.code,
+        'checkout-path-missing'
+      )
+      const missingCheckout = await git(['sparse-checkout', 'list'], repository)
+      assert.equal(missingCheckout.stdout.trim(), 'knowledge')
 
       await writeTaskConfiguration(task, remote)
       const expanded = await gits(['-C', task, 'install', '--json'])
@@ -233,7 +319,7 @@ describe('gits CLI', () => {
     }
   })
 
-  it('leaves no repository behind when a configured checkout directory is missing', async () => {
+  void it('leaves no repository behind when a configured checkout directory is missing', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'gits-sparse-missing-test-'))
 
     try {
@@ -245,14 +331,17 @@ describe('gits CLI', () => {
 
       const installed = await gits(['-C', task, 'install', '--json'])
       assert.equal(installed.code, 1)
-      assert.equal(parseOutput(installed).repos[0]?.error?.code, 'checkout-path-missing')
-      await assert.rejects(() => access(resolve(task, 'repos/api')))
+      assert.equal(
+        parseOutput(installed).repos[0]?.error?.code,
+        'checkout-path-missing'
+      )
+      await assert.rejects(async () => access(resolve(task, 'repos/api')))
     } finally {
       await rm(root, { force: true, recursive: true })
     }
   })
 
-  it('imports every source task entry except repos without modifying the source task', async () => {
+  void it('imports every source task entry except repos without modifying the source task', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'gits-scan-test-'))
     const source = resolve(root, 'source-task')
     const target = resolve(root, 'target-task')
@@ -296,31 +385,60 @@ describe('gits CLI', () => {
         await mkdir(resolve(source, path, '..'), { recursive: true })
         await writeFile(resolve(source, path), content)
       }
-      await mkdir(resolve(source, 'repos/project-manager/.git'), { recursive: true })
-      await writeFile(resolve(source, 'repos/AGENTS.md'), 'source repository instructions\n')
+      await mkdir(resolve(source, 'repos/project-manager/.git'), {
+        recursive: true,
+      })
+      await writeFile(
+        resolve(source, 'repos/AGENTS.md'),
+        'source repository instructions\n'
+      )
       await writeFile(
         resolve(source, 'repos/project-manager/package.json'),
-        '{"name":"project-manager"}\n',
+        '{"name":"project-manager"}\n'
       )
-      await writeFile(resolve(source, 'repos/project-manager/.git/HEAD'), 'ref: refs/heads/main\n')
+      await writeFile(
+        resolve(source, 'repos/project-manager/.git/HEAD'),
+        'ref: refs/heads/main\n'
+      )
 
       await mkdir(target)
-      const imported = await gits(['-C', target, 'init', '--scan', '../source-task', '--json'])
+      const imported = await gits([
+        '-C',
+        target,
+        'init',
+        '--scan',
+        '../source-task',
+        '--json',
+      ])
       assert.equal(imported.code, 0)
       assert.deepEqual(
         parseOutput(imported).repos.map((repository) => repository.name),
-        ['project-manager', 'meego-ipd'],
+        ['project-manager', 'meego-ipd']
       )
-      assert.equal(await readFile(resolve(target, 'task.config.jsonc'), 'utf8'), sourceConfig)
-      for (const [path, content] of copiedFiles) {
-        assert.equal(await readFile(resolve(target, path), 'utf8'), content)
-      }
-      await assert.rejects(() => access(resolve(target, 'repos/project-manager')))
-      assert.match(await readFile(resolve(target, 'repos/AGENTS.md'), 'utf8'), /独立 Git 仓库/u)
-      assert.equal(await readFile(resolve(source, 'task.config.jsonc'), 'utf8'), sourceConfig)
       assert.equal(
-        await readFile(resolve(source, 'repos/project-manager/package.json'), 'utf8'),
-        '{"name":"project-manager"}\n',
+        await readFile(resolve(target, 'task.config.jsonc'), 'utf-8'),
+        sourceConfig
+      )
+      for (const [path, content] of copiedFiles) {
+        assert.equal(await readFile(resolve(target, path), 'utf-8'), content)
+      }
+      await assert.rejects(async () =>
+        access(resolve(target, 'repos/project-manager'))
+      )
+      assert.match(
+        await readFile(resolve(target, 'repos/AGENTS.md'), 'utf-8'),
+        /独立 Git 仓库/u
+      )
+      assert.equal(
+        await readFile(resolve(source, 'task.config.jsonc'), 'utf-8'),
+        sourceConfig
+      )
+      assert.equal(
+        await readFile(
+          resolve(source, 'repos/project-manager/package.json'),
+          'utf-8'
+        ),
+        '{"name":"project-manager"}\n'
       )
     } finally {
       await rm(root, { force: true, recursive: true })
@@ -329,21 +447,35 @@ describe('gits CLI', () => {
 })
 
 async function gits(args: readonly string[]): Promise<CommandResponse> {
-  return run(process.execPath, ['--import=tsx', cliEntry, ...args], repositoryRoot)
+  return run(
+    process.execPath,
+    ['--import=tsx', cliEntry, ...args],
+    repositoryRoot
+  )
 }
 
-async function git(args: readonly string[], cwd: string): Promise<CommandResponse> {
+async function git(
+  args: readonly string[],
+  cwd: string
+): Promise<CommandResponse> {
   return run('git', args, cwd)
 }
 
 async function run(
   command: string,
   args: readonly string[],
-  cwd: string,
+  cwd: string
 ): Promise<CommandResponse> {
   try {
-    const response = await executeFile(command, args, { cwd, encoding: 'utf8' })
-    return { code: 0, stderr: String(response.stderr), stdout: String(response.stdout) }
+    const response = await executeFile(command, args, {
+      cwd,
+      encoding: 'utf-8',
+    })
+    return {
+      code: 0,
+      stderr: response.stderr,
+      stdout: response.stdout,
+    }
   } catch (error) {
     const failure = error as CommandFailure
     return {
@@ -377,19 +509,22 @@ async function createRemote(root: string): Promise<string> {
 async function writeTaskConfiguration(
   task: string,
   remote: string,
-  checkout?: readonly string[],
+  checkout?: readonly string[]
 ): Promise<void> {
   const config = {
     repos: {
       api: {
-        url: pathToFileURL(remote).href,
         branch: 'feat/task-1',
         ...(checkout === undefined ? {} : { checkout }),
         from: 'origin/main',
+        url: pathToFileURL(remote).href,
       },
     },
   }
-  await writeFile(resolve(task, 'task.config.jsonc'), `${JSON.stringify(config, null, 2)}\n`)
+  await writeFile(
+    resolve(task, 'task.config.jsonc'),
+    `${JSON.stringify(config, null, 2)}\n`
+  )
 }
 
 function parseOutput(response: CommandResponse): JsonCommandOutput {

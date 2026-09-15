@@ -5,9 +5,11 @@ import { Cli, z } from 'incur'
 import {
   ICliConfirmationService,
   ICliOutputService,
-  type CliContext,
-  type CliInstance,
-  type IRepoMirrorSubcommand,
+} from '../../../contract/index'
+import type {
+  CliContext,
+  CliInstance,
+  IRepoMirrorSubcommand,
 } from '../../../contract/index'
 
 interface DoctorOptions {
@@ -19,9 +21,11 @@ interface DoctorOptions {
 
 export class DoctorRepoMirrorCommand implements IRepoMirrorSubcommand {
   constructor(
-    @Inject(IDoctorRepoMirrorService) private readonly service: IDoctorRepoMirrorService,
-    @Inject(ICliConfirmationService) private readonly confirmation: ICliConfirmationService,
-    @Inject(ICliOutputService) private readonly output: ICliOutputService,
+    @Inject(IDoctorRepoMirrorService)
+    private readonly service: IDoctorRepoMirrorService,
+    @Inject(ICliConfirmationService)
+    private readonly confirmation: ICliConfirmationService,
+    @Inject(ICliOutputService) private readonly output: ICliOutputService
   ) {}
 
   register(cli: CliInstance): void {
@@ -32,35 +36,51 @@ export class DoctorRepoMirrorCommand implements IRepoMirrorSubcommand {
         description: 'Check or repair mirror health.',
         destructive: true,
         options: z.object({
-          deep: z.boolean().default(false).describe('Run a full Git object fsck'),
-          fix: z.boolean().default(false).describe('Repair missing or invalid mirrors'),
-          remote: z.boolean().default(false).describe('Check non-interactive remote access'),
-          yes: z.boolean().default(false).describe('Confirm repairs without prompting'),
+          deep: z
+            .boolean()
+            .default(false)
+            .describe('Run a full Git object fsck'),
+          fix: z
+            .boolean()
+            .default(false)
+            .describe('Repair missing or invalid mirrors'),
+          remote: z
+            .boolean()
+            .default(false)
+            .describe('Check non-interactive remote access'),
+          yes: z
+            .boolean()
+            .default(false)
+            .describe('Confirm repairs without prompting'),
         }),
         run: async (rawContext) => {
           const context = rawContext as CliContext & {
             readonly args: { readonly names: readonly string[] }
             readonly options: DoctorOptions
           }
-          return this.output.runRepoMirror(context, 'repo-mirrors doctor', async (signal) => {
-            const confirmed =
-              !context.options.fix ||
-              (await this.confirmation.confirm(
-                context,
-                context.options.yes,
-                'Repair invalid repo mirrors?',
-              ))
-            return this.service.execute({
-              confirmed,
-              deep: context.options.deep,
-              fix: context.options.fix,
-              names: context.args.names,
-              remote: context.options.remote,
-              signal,
-            })
-          })
+          return this.output.runRepoMirror(
+            context,
+            'repo-mirrors doctor',
+            async (signal) => {
+              const confirmed =
+                !context.options.fix ||
+                (await this.confirmation.confirm(
+                  context,
+                  context.options.yes,
+                  'Repair invalid repo mirrors?'
+                ))
+              return this.service.execute({
+                confirmed,
+                deep: context.options.deep,
+                fix: context.options.fix,
+                names: context.args.names,
+                remote: context.options.remote,
+                signal,
+              })
+            }
+          )
         },
-      }),
+      })
     )
   }
 }

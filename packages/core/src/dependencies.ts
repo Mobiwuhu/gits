@@ -89,7 +89,10 @@ export const coreDependencies: Dependency[] = [
   [IGitsPathService, { useClass: GitsPathService }],
   [IProcessService, { useClass: ProcessService }],
 
-  [IRepoMirrorConfigurationService, { useClass: RepoMirrorConfigurationService }],
+  [
+    IRepoMirrorConfigurationService,
+    { useClass: RepoMirrorConfigurationService },
+  ],
   [IRepoMirrorDependencyService, { useClass: RepoMirrorDependencyService }],
   [IRepoMirrorGitService, { useClass: RepoMirrorGitService }],
   [IRepoMirrorLockService, { useClass: RepoMirrorLockService }],

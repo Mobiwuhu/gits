@@ -6,7 +6,10 @@ export class ProcessService implements IProcessService {
   async run(
     executable: string,
     args: readonly string[],
-    options: Readonly<{ environment?: NodeJS.ProcessEnv; signal?: AbortSignal }> = {},
+    options: Readonly<{
+      environment?: NodeJS.ProcessEnv
+      signal?: AbortSignal
+    }> = {}
   ): Promise<ProcessResult> {
     const startedAt = performance.now()
     return new Promise<ProcessResult>((resolve, reject) => {
@@ -22,7 +25,7 @@ export class ProcessService implements IProcessService {
         try {
           child.kill('SIGINT')
         } catch {
-          // The child may already have exited.
+          // 子进程可能已经退出。
         }
       }
       options.signal?.addEventListener('abort', abort, { once: true })

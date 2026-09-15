@@ -11,14 +11,29 @@ export interface CalendarEntry {
 
 export function compileCalendarEntries(cron: string): readonly CalendarEntry[] {
   validatePortableCron(cron)
-  const fields = cron.trim().split(/\s+/u)
-  const minute = expandField(fields[0] as string, 0, 59)
-  const hour = expandField(fields[1] as string, 0, 23)
-  const day = expandField(fields[2] as string, 1, 31)
-  const month = expandField(fields[3] as string, 1, 12)
-  const weekday = expandField(fields[4] as string, 0, 7).map((value) => (value === 7 ? 0 : value))
-  const dayWildcard = fields[2] === '*'
-  const weekdayWildcard = fields[4] === '*'
+  const [minuteField, hourField, dayField, monthField, weekdayField] = cron
+    .trim()
+    .split(/\s+/u)
+  if (
+    minuteField === undefined ||
+    hourField === undefined ||
+    dayField === undefined ||
+    monthField === undefined ||
+    weekdayField === undefined
+  ) {
+    throw new RepoMirrorUsageError(
+      'Cron expression must contain exactly five fields.'
+    )
+  }
+  const minute = expandField(minuteField, 0, 59)
+  const hour = expandField(hourField, 0, 23)
+  const day = expandField(dayField, 1, 31)
+  const month = expandField(monthField, 1, 12)
+  const weekday = expandField(weekdayField, 0, 7).map((value) =>
+    value === 7 ? 0 : value
+  )
+  const dayWildcard = dayField === '*'
+  const weekdayWildcard = weekdayField === '*'
   const branches: readonly Readonly<{
     days: readonly (number | undefined)[]
     weekdays: readonly (number | undefined)[]
@@ -32,24 +47,32 @@ export function compileCalendarEntries(cron: string): readonly CalendarEntry[] {
 
   const entries: CalendarEntry[] = []
   for (const branch of branches) {
-    for (const monthValue of wildcardValue(month, fields[3] === '*')) {
-      for (const dayValue of wildcardValue(branch.days, dayWildcard && branches.length === 1)) {
+    for (const monthValue of wildcardValue(month, monthField === '*')) {
+      for (const dayValue of wildcardValue(
+        branch.days,
+        dayWildcard && branches.length === 1
+      )) {
         for (const weekdayValue of wildcardValue(
           branch.weekdays,
-          weekdayWildcard && branches.length === 1,
+          weekdayWildcard && branches.length === 1
         )) {
-          for (const hourValue of wildcardValue(hour, fields[1] === '*')) {
-            for (const minuteValue of wildcardValue(minute, fields[0] === '*')) {
+          for (const hourValue of wildcardValue(hour, hourField === '*')) {
+            for (const minuteValue of wildcardValue(
+              minute,
+              minuteField === '*'
+            )) {
               entries.push({
                 ...(dayValue === undefined ? {} : { day: dayValue }),
                 ...(hourValue === undefined ? {} : { hour: hourValue }),
                 ...(minuteValue === undefined ? {} : { minute: minuteValue }),
                 ...(monthValue === undefined ? {} : { month: monthValue }),
-                ...(weekdayValue === undefined ? {} : { weekday: weekdayValue }),
+                ...(weekdayValue === undefined
+                  ? {}
+                  : { weekday: weekdayValue }),
               })
               if (entries.length > 256) {
                 throw new RepoMirrorUsageError(
-                  'Cron expression expands to more than 256 native calendar entries.',
+                  'Cron expression expands to more than 256 native calendar entries.'
                 )
               }
             }
@@ -62,7 +85,8 @@ export function compileCalendarEntries(cron: string): readonly CalendarEntry[] {
 }
 
 export function calendarEntryToSystemd(entry: CalendarEntry): string {
-  const weekday = entry.weekday === undefined ? '' : `${weekdayName(entry.weekday)} `
+  const weekday =
+    entry.weekday === undefined ? '' : `${weekdayName(entry.weekday)} `
   const month = entry.month === undefined ? '*' : pad(entry.month)
   const day = entry.day === undefined ? '*' : pad(entry.day)
   const hour = entry.hour === undefined ? '*' : pad(entry.hour)
@@ -70,24 +94,29 @@ export function calendarEntryToSystemd(entry: CalendarEntry): string {
   return `${weekday}*-${month}-${day} ${hour}:${minute}:00`
 }
 
-function expandField(field: string, minimum: number, maximum: number): readonly number[] {
+function expandField(
+  field: string,
+  minimum: number,
+  maximum: number
+): readonly number[] {
   const values = new Set<number>()
   for (const component of field.split(',')) {
     const [rangePart, stepPart] = component.split('/')
-    const step = stepPart === undefined ? 1 : Number.parseInt(stepPart, 10)
-    if (!Number.isSafeInteger(step) || step < 1)
+    const step = stepPart === undefined ? 1 : Math.trunc(Number(stepPart))
+    if (!Number.isSafeInteger(step) || step < 1) {
       throw new RepoMirrorUsageError('Cron step must be positive.')
+    }
     let start: number
     let end: number
     if (rangePart === '*') {
       start = minimum
       end = maximum
-    } else if (rangePart?.includes('-')) {
+    } else if (rangePart !== undefined && rangePart.includes('-')) {
       const [startText, endText] = rangePart.split('-')
-      start = Number.parseInt(startText ?? '', 10)
-      end = Number.parseInt(endText ?? '', 10)
+      start = Math.trunc(Number(startText ?? ''))
+      end = Math.trunc(Number(endText ?? ''))
     } else {
-      start = Number.parseInt(rangePart ?? '', 10)
+      start = Math.trunc(Number(rangePart ?? ''))
       end = stepPart === undefined ? start : maximum
     }
     if (
@@ -97,25 +126,33 @@ function expandField(field: string, minimum: number, maximum: number): readonly 
       end > maximum ||
       start > end
     ) {
-      throw new RepoMirrorUsageError(`Cron value '${component}' is outside ${minimum}-${maximum}.`)
+      throw new RepoMirrorUsageError(
+        `Cron value '${component}' is outside ${minimum}-${maximum}.`
+      )
     }
-    for (let value = start; value <= end; value += step) values.add(value)
+    for (let value = start; value <= end; value += step) {
+      values.add(value)
+    }
   }
   return [...values].toSorted((left, right) => left - right)
 }
 
 function wildcardValue(
   values: readonly (number | undefined)[],
-  wildcard: boolean,
+  wildcard: boolean
 ): readonly (number | undefined)[] {
   return wildcard ? [undefined] : values
 }
 
-function deduplicateEntries(entries: readonly CalendarEntry[]): readonly CalendarEntry[] {
+function deduplicateEntries(
+  entries: readonly CalendarEntry[]
+): readonly CalendarEntry[] {
   const seen = new Set<string>()
   return entries.filter((entry) => {
     const key = JSON.stringify(entry)
-    if (seen.has(key)) return false
+    if (seen.has(key)) {
+      return false
+    }
     seen.add(key)
     return true
   })

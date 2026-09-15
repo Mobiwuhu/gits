@@ -1,5 +1,12 @@
 import { mkdir, readFile, realpath, rm } from 'node:fs/promises'
-import { dirname, isAbsolute, normalize, relative, resolve, sep } from 'node:path'
+import {
+  dirname,
+  isAbsolute,
+  normalize,
+  relative,
+  resolve,
+  sep,
+} from 'node:path'
 
 import { Inject } from '@wendellhu/redi'
 
@@ -7,33 +14,43 @@ import {
   IFileSystemService,
   IGitsPathService,
   IRepoMirrorGitService,
-  type IRepoMirrorDependencyService,
-  type RepoMirrorDetachResult,
-  type RepoMirrorDependencyState,
-  type RepoMirrorDependent,
+} from '../../../contract/index'
+import type {
+  IRepoMirrorDependencyService,
+  RepoMirrorDetachResult,
+  RepoMirrorDependencyState,
+  RepoMirrorDependent,
 } from '../../../contract/index'
 
 export class RepoMirrorDependencyService implements IRepoMirrorDependencyService {
   constructor(
     @Inject(IGitsPathService) private readonly paths: IGitsPathService,
     @Inject(IRepoMirrorGitService) private readonly git: IRepoMirrorGitService,
-    @Inject(IFileSystemService) private readonly fileSystem: IFileSystemService,
+    @Inject(IFileSystemService) private readonly fileSystem: IFileSystemService
   ) {}
 
   async register(
     mirrorName: string,
     mirrorPath: string,
     repositoryPath: string,
-    recordedRepositoryPath: string = repositoryPath,
+    recordedRepositoryPath: string = repositoryPath
   ): Promise<boolean> {
     const gitDirectory = await this.git.resolveGitDirectory(repositoryPath)
-    if (gitDirectory === null || !(await referencesMirror(gitDirectory, mirrorPath))) return false
+    if (
+      gitDirectory === null ||
+      !(await referencesMirror(gitDirectory, mirrorPath))
+    ) {
+      return false
+    }
 
     const [canonicalRepository, canonicalGitDirectory] = await Promise.all([
       canonicalPath(repositoryPath),
       canonicalPath(gitDirectory),
     ])
-    const relativeGitDirectory = relative(canonicalRepository, canonicalGitDirectory)
+    const relativeGitDirectory = relative(
+      canonicalRepository,
+      canonicalGitDirectory
+    )
     const recordedGitDirectory =
       relativeGitDirectory === '..' ||
       relativeGitDirectory.startsWith(`..${sep}`) ||
@@ -43,7 +60,8 @@ export class RepoMirrorDependencyService implements IRepoMirrorDependencyService
 
     const current = await this.read(mirrorName)
     const withoutRepository = current.dependents.filter(
-      (dependent) => normalize(dependent.gitDirectory) !== normalize(recordedGitDirectory),
+      (dependent) =>
+        normalize(dependent.gitDirectory) !== normalize(recordedGitDirectory)
     )
     const dependency: RepoMirrorDependent = {
       gitDirectory: recordedGitDirectory,
@@ -58,11 +76,16 @@ export class RepoMirrorDependencyService implements IRepoMirrorDependencyService
     return true
   }
 
-  async list(mirrorName: string, mirrorPath: string): Promise<readonly RepoMirrorDependent[]> {
+  async list(
+    mirrorName: string,
+    mirrorPath: string
+  ): Promise<readonly RepoMirrorDependent[]> {
     const current = await this.read(mirrorName)
     const live: RepoMirrorDependent[] = []
     for (const dependent of current.dependents) {
-      if (await referencesMirror(dependent.gitDirectory, mirrorPath)) live.push(dependent)
+      if (await referencesMirror(dependent.gitDirectory, mirrorPath)) {
+        live.push(dependent)
+      }
     }
     return live
   }
@@ -70,7 +93,7 @@ export class RepoMirrorDependencyService implements IRepoMirrorDependencyService
   async detachAll(
     mirrorName: string,
     mirrorPath: string,
-    options: Readonly<{ signal?: AbortSignal }> = {},
+    options: Readonly<{ signal?: AbortSignal }> = {}
   ): Promise<RepoMirrorDetachResult> {
     const dependents = await this.list(mirrorName, mirrorPath)
     const detached: string[] = []
@@ -85,33 +108,42 @@ export class RepoMirrorDependencyService implements IRepoMirrorDependencyService
         continue
       }
       const result = await this.detach(dependent, mirrorPath, options)
-      if (result === null) detached.push(dependent.repositoryPath)
-      else failures.push({ message: result, repositoryPath: dependent.repositoryPath })
+      if (result === null) {
+        detached.push(dependent.repositoryPath)
+      } else {
+        failures.push({
+          message: result,
+          repositoryPath: dependent.repositoryPath,
+        })
+      }
     }
 
-    if (failures.length === 0) {
-      await this.write({ dependents: [], mirrorName, version: 1 })
-    } else {
-      await this.list(mirrorName, mirrorPath)
-    }
+    await (failures.length === 0
+      ? this.write({ dependents: [], mirrorName, version: 1 })
+      : this.list(mirrorName, mirrorPath))
     return { detached, failures }
   }
 
   private async detach(
     dependent: RepoMirrorDependent,
     mirrorPath: string,
-    options: Readonly<{ signal?: AbortSignal }>,
+    options: Readonly<{ signal?: AbortSignal }>
   ): Promise<string | null> {
     const repack = await this.git.repackDependent(
       dependent.repositoryPath,
-      options.signal === undefined ? {} : { signal: options.signal },
+      options.signal === undefined ? {} : { signal: options.signal }
     )
-    if (repack.aborted || repack.exitCode !== 0) return commandFailure('git repack', repack.stderr)
+    if (repack.aborted || repack.exitCode !== 0) {
+      return commandFailure('git repack', repack.stderr)
+    }
 
-    const alternatesPath = resolve(dependent.gitDirectory, 'objects/info/alternates')
+    const alternatesPath = resolve(
+      dependent.gitDirectory,
+      'objects/info/alternates'
+    )
     let original: string
     try {
-      original = await readFile(alternatesPath, 'utf8')
+      original = await readFile(alternatesPath, 'utf-8')
     } catch (error) {
       return hasCode(error, 'ENOENT')
         ? null
@@ -128,11 +160,15 @@ export class RepoMirrorDependencyService implements IRepoMirrorDependencyService
     }
 
     try {
-      if (filtered.length === 0) await rm(alternatesPath, { force: true })
-      else await this.fileSystem.writeFileAtomically(alternatesPath, `${filtered.join('\n')}\n`)
+      await (filtered.length === 0
+        ? rm(alternatesPath, { force: true })
+        : this.fileSystem.writeFileAtomically(
+            alternatesPath,
+            `${filtered.join('\n')}\n`
+          ))
       const checked = await this.git.fsck(
         dependent.repositoryPath,
-        options.signal === undefined ? {} : { signal: options.signal },
+        options.signal === undefined ? {} : { signal: options.signal }
       )
       if (checked.aborted || checked.exitCode !== 0) {
         await this.fileSystem.writeFileAtomically(alternatesPath, original)
@@ -147,11 +183,17 @@ export class RepoMirrorDependencyService implements IRepoMirrorDependencyService
 
   private async read(mirrorName: string): Promise<RepoMirrorDependencyState> {
     try {
-      const parsed: unknown = JSON.parse(await readFile(this.path(mirrorName), 'utf8'))
-      if (!isDependencyState(parsed, mirrorName)) throw new Error('Dependency state is invalid.')
+      const parsed: unknown = JSON.parse(
+        await readFile(this.path(mirrorName), 'utf-8')
+      )
+      if (!isDependencyState(parsed, mirrorName)) {
+        throw new Error('Dependency state is invalid.')
+      }
       return parsed
     } catch (error) {
-      if (hasCode(error, 'ENOENT')) return { dependents: [], mirrorName, version: 1 }
+      if (hasCode(error, 'ENOENT')) {
+        return { dependents: [], mirrorName, version: 1 }
+      }
       throw error
     }
   }
@@ -160,7 +202,7 @@ export class RepoMirrorDependencyService implements IRepoMirrorDependencyService
     await mkdir(this.paths.dependencyState, { mode: 0o700, recursive: true })
     await this.fileSystem.writeFileAtomically(
       this.path(state.mirrorName),
-      `${JSON.stringify(state, null, 2)}\n`,
+      `${JSON.stringify(state, null, 2)}\n`
     )
   }
 
@@ -169,16 +211,23 @@ export class RepoMirrorDependencyService implements IRepoMirrorDependencyService
   }
 }
 
-async function referencesMirror(gitDirectory: string, mirrorPath: string): Promise<boolean> {
+async function referencesMirror(
+  gitDirectory: string,
+  mirrorPath: string
+): Promise<boolean> {
   const alternatesPath = resolve(gitDirectory, 'objects/info/alternates')
   try {
-    const content = await readFile(alternatesPath, 'utf8')
+    const content = await readFile(alternatesPath, 'utf-8')
     for (const line of content.split(/\r?\n/u)) {
-      if (await isMirrorObjectsLine(line, alternatesPath, mirrorPath)) return true
+      if (await isMirrorObjectsLine(line, alternatesPath, mirrorPath)) {
+        return true
+      }
     }
     return false
   } catch (error) {
-    if (hasCode(error, 'ENOENT')) return false
+    if (hasCode(error, 'ENOENT')) {
+      return false
+    }
     throw error
   }
 }
@@ -186,10 +235,12 @@ async function referencesMirror(gitDirectory: string, mirrorPath: string): Promi
 async function isMirrorObjectsLine(
   line: string,
   alternatesPath: string,
-  mirrorPath: string,
+  mirrorPath: string
 ): Promise<boolean> {
   const value = line.trim()
-  if (value.length === 0) return false
+  if (value.length === 0) {
+    return false
+  }
   const [alternateObjects, mirrorObjects] = await Promise.all([
     canonicalPath(resolve(dirname(dirname(alternatesPath)), value)),
     canonicalPath(resolve(mirrorPath, 'objects')),
@@ -205,29 +256,52 @@ async function canonicalPath(path: string): Promise<string> {
   }
 }
 
-function isDependencyState(value: unknown, mirrorName: string): value is RepoMirrorDependencyState {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  if (!('version' in value) || value.version !== 1) return false
-  if (!('mirrorName' in value) || value.mirrorName !== mirrorName) return false
-  if (!('dependents' in value) || !Array.isArray(value.dependents)) return false
-  return value.dependents.every(
-    (dependent) =>
-      typeof dependent === 'object' &&
-      dependent !== null &&
-      'gitDirectory' in dependent &&
-      typeof dependent.gitDirectory === 'string' &&
-      'registeredAt' in dependent &&
-      typeof dependent.registeredAt === 'string' &&
-      'repositoryPath' in dependent &&
-      typeof dependent.repositoryPath === 'string',
+function isDependencyState(
+  value: unknown,
+  mirrorName: string
+): value is RepoMirrorDependencyState {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false
+  }
+  if (!('version' in value) || value.version !== 1) {
+    return false
+  }
+  if (!('mirrorName' in value) || value.mirrorName !== mirrorName) {
+    return false
+  }
+  if (!('dependents' in value) || !Array.isArray(value.dependents)) {
+    return false
+  }
+  return value.dependents.every((dependent: unknown) =>
+    isRepoMirrorDependent(dependent)
+  )
+}
+
+function isRepoMirrorDependent(value: unknown): value is RepoMirrorDependent {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'gitDirectory' in value &&
+    typeof value.gitDirectory === 'string' &&
+    'registeredAt' in value &&
+    typeof value.registeredAt === 'string' &&
+    'repositoryPath' in value &&
+    typeof value.repositoryPath === 'string'
   )
 }
 
 function commandFailure(command: string, stderr: string): string {
   const message = stderr.trim()
-  return message.length === 0 ? `${command} failed.` : `${command} failed: ${message}`
+  return message.length === 0
+    ? `${command} failed.`
+    : `${command} failed: ${message}`
 }
 
 function hasCode(error: unknown, code: string): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === code
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === code
+  )
 }

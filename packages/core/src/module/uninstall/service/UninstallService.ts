@@ -6,68 +6,87 @@ import {
   IRepoMirrorDependencyService,
   IRepoMirrorStoreService,
   IRepoMirrorViewService,
-  type IUninstallService,
+  RepoMirrorAction,
   RepoMirrorUsageError,
-  type GitsUninstallMirror,
-  type GitsUninstallOutput,
-  type GitsUninstallPlan,
-  type RepoMirrorDefinition,
-  type UninstallGitsInput,
+} from '../../../contract/index'
+import type {
+  IUninstallService,
+  GitsUninstallMirror,
+  GitsUninstallOutput,
+  GitsUninstallPlan,
+  RepoMirrorDefinition,
+  UninstallGitsInput,
 } from '../../../contract/index'
 
 export class UninstallService implements IUninstallService {
   constructor(
     @Inject(IRepoMirrorDependencyService)
     private readonly dependencies: IRepoMirrorDependencyService,
-    @Inject(IGitsPersistenceService) private readonly persistence: IGitsPersistenceService,
-    @Inject(IRemoveRepoMirrorService) private readonly removeRepoMirror: IRemoveRepoMirrorService,
-    @Inject(IRepoMirrorStoreService) private readonly store: IRepoMirrorStoreService,
-    @Inject(IRepoMirrorViewService) private readonly view: IRepoMirrorViewService,
+    @Inject(IGitsPersistenceService)
+    private readonly persistence: IGitsPersistenceService,
+    @Inject(IRemoveRepoMirrorService)
+    private readonly removeRepoMirror: IRemoveRepoMirrorService,
+    @Inject(IRepoMirrorStoreService)
+    private readonly store: IRepoMirrorStoreService,
+    @Inject(IRepoMirrorViewService)
+    private readonly view: IRepoMirrorViewService
   ) {}
 
   async plan(force = false): Promise<GitsUninstallPlan> {
     let definitions: readonly RepoMirrorDefinition[]
     const warnings: string[] = []
     try {
-      definitions = (await this.store.load()).repoMirrors
+      const configuration = await this.store.load()
+      definitions = configuration.repoMirrors
     } catch (error) {
-      if (!force) throw error
+      if (!force) {
+        throw error
+      }
       definitions = []
       warnings.push(
-        `Mirror configuration could not be read; --force will remove owned storage without dependent checks: ${errorMessage(error)}`,
+        `Mirror configuration could not be read; --force will remove owned storage without dependent checks: ${errorMessage(error)}`
       )
     }
 
     const inspected = await Promise.all(
       definitions.map(
         async (
-          definition,
+          definition
         ): Promise<{
           mirror: GitsUninstallMirror
           warning: string | null
         }> => {
           const path = this.view.mirrorPath(definition.name)
           try {
-            const dependents = await this.dependencies.list(definition.name, path)
+            const dependents = await this.dependencies.list(
+              definition.name,
+              path
+            )
             return {
               mirror: {
-                dependents: dependents.map((dependent) => dependent.repositoryPath),
+                dependents: dependents.map(
+                  (dependent) => dependent.repositoryPath
+                ),
                 name: definition.name,
                 path,
               },
               warning: null,
             }
           } catch (error) {
-            if (!force) throw error
+            if (!force) {
+              throw error
+            }
             return {
               mirror: { dependents: [], name: definition.name, path },
               warning: `Dependencies for '${definition.name}' could not be read; --force will remove owned storage without checking them: ${errorMessage(error)}`,
             }
           }
-        },
-      ),
+        }
+      )
     )
-    warnings.push(...inspected.flatMap(({ warning }) => (warning === null ? [] : [warning])))
+    warnings.push(
+      ...inspected.flatMap(({ warning }) => (warning === null ? [] : [warning]))
+    )
     return {
       mirrors: inspected.map(({ mirror }) => mirror),
       targets: await this.persistence.inspect(),
@@ -77,10 +96,14 @@ export class UninstallService implements IUninstallService {
 
   async execute(input: UninstallGitsInput): Promise<GitsUninstallOutput> {
     if (input.detachDependents && input.force) {
-      throw new RepoMirrorUsageError('--force and --detach-dependents cannot be combined.')
+      throw new RepoMirrorUsageError(
+        '--force and --detach-dependents cannot be combined.'
+      )
     }
     if (!input.dryRun && !input.confirmed) {
-      throw new RepoMirrorUsageError('Uninstall requires confirmation or --yes.')
+      throw new RepoMirrorUsageError(
+        'Uninstall requires confirmation or --yes.'
+      )
     }
 
     const plan = await this.plan(input.force)
@@ -142,12 +165,15 @@ export class UninstallService implements IUninstallService {
         ...(input.signal === undefined ? {} : { signal: input.signal }),
       })
       removedMirrors = result.mirrors
-        .filter((mirror) => mirror.action === 'removed')
+        .filter((mirror) => mirror.action === RepoMirrorAction.Removed)
         .map((mirror) => mirror.name)
       if (!result.ok) {
         const failures = result.mirrors
           .filter((mirror) => mirror.error !== null)
-          .map((mirror) => `${mirror.name}: ${mirror.error?.message ?? 'removal failed'}`)
+          .map(
+            (mirror) =>
+              `${mirror.name}: ${mirror.error?.message ?? 'removal failed'}`
+          )
         return {
           command: 'uninstall',
           dryRun: false,
@@ -156,7 +182,11 @@ export class UninstallService implements IUninstallService {
           removedMirrors,
           removedPaths: [],
           targets: plan.targets,
-          warnings: [...plan.warnings, ...failures, 'GITS_HOME was retained for recovery.'],
+          warnings: [
+            ...plan.warnings,
+            ...failures,
+            'GITS_HOME was retained for recovery.',
+          ],
         }
       }
     }

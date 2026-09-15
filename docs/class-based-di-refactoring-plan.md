@@ -1,9 +1,6 @@
 # 基于类与 ReDI 的架构重构计划
 
-> 状态：已实施；本文同时作为后续目录与依赖规范
-> 日期：2026-09-13
-> 范围：`gits` CLI 的源码组织、Workspace 拆包、面向对象改造和依赖装配
-> 相关资料：[ReDI](https://redi.wzhu.dev/)、[Declare Dependency](https://redi.wzhu.dev/docs/declare-dependency)
+> 状态：已实施；本文同时作为后续目录与依赖规范日期：2026-09-13范围：`gits` CLI 的源码组织、Workspace 拆包、面向对象改造和依赖装配相关资料：[ReDI](https://redi.wzhu.dev/)、[Declare Dependency](https://redi.wzhu.dev/docs/declare-dependency)
 
 ## 1. 结论
 
@@ -194,7 +191,7 @@ export class FetchTaskService implements IFetchTaskService {
     @Inject(IConcurrencyService)
     private readonly concurrency: IConcurrencyService,
     @Inject(IGitService)
-    private readonly git: IGitService,
+    private readonly git: IGitService
   ) {}
 
   async execute(input: FetchTaskInput): Promise<CommandOutput> {
@@ -202,7 +199,9 @@ export class FetchTaskService implements IFetchTaskService {
     return this.fetchRepositories(input)
   }
 
-  private async fetchRepositories(input: FetchTaskInput): Promise<CommandOutput> {
+  private async fetchRepositories(
+    input: FetchTaskInput
+  ): Promise<CommandOutput> {
     // 内部流程直接使用 this.concurrency / this.git。
   }
 }
@@ -720,27 +719,27 @@ ReDI 会由两个包直接使用，必须通过 Workspace catalog 锁定同一�
 
 ## 9. 当前目录到目标目录的映射
 
-| 当前位置                                                      | 目标位置                                                                                |
-| ------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `domain/task/model.ts`                                        | `packages/core/src/contract/types/task.ts`                                              |
-| `domain/repo-mirror/model.ts`                                 | `packages/core/src/contract/types/repoMirror.ts`                                        |
-| `domain/*/errors.ts`                                          | 对应 Contract 类型或模块 Service 邻近文件                                               |
-| `application/use-cases/*.ts`                                  | `packages/core/src/module/task/service/*TaskService.ts`                                 |
-| `application/task/*.ts`                                       | Task 模块内的命令 Service 或共享辅助 Service                                            |
-| `application/repo-mirrors/repo-mirror-manager.ts`             | 八个独立 RepoMirror 命令 Service                                                        |
-| `application/repo-mirrors/configured-repo-mirror-resolver.ts` | `ResolveRepoMirrorService.ts`                                                           |
-| `application/uninstall/gits-uninstaller.ts`                   | `UninstallService.ts`                                                                   |
-| `application/ports/*.ts`                                      | 按新 Service 职责整理；每个可注入 Service 在 `contract/interface` 声明接口与 Identifier |
-| `infrastructure/git/*`                                        | 根 `service/GitService.ts` 或其邻近私有实现                                             |
-| `infrastructure/filesystem/*`                                 | 根 `service/FileSystemService.ts` 或所属业务模块                                        |
-| `infrastructure/process/*`                                    | 根 `service/ProcessService.ts`                                                          |
-| `infrastructure/repo-mirrors/*`                               | Core 的 repoMirror 模块 Service                                                         |
-| `infrastructure/scheduler/*`                                  | Core 的 repoMirror 模块 Service                                                         |
-| `presentation/cli/routes/*`                                   | `apps/cli/src/module/*/service/*Command.ts`                                             |
-| `presentation/cli/presenters/*`                               | `apps/cli/src/service/CliOutputService.ts` 及邻近类                                     |
-| `presentation/cli/services.ts`                                | 删除；由 ReDI 和 `bootstrap/container.ts` 取代                                          |
-| `getApplicationServices()`                                    | 删除；改为构造器注入                                                                    |
-| `setApplicationServicesForTesting()`                          | 删除；测试使用独立 Injector 和替代绑定                                                  |
+| 当前位置 | 目标位置 |
+| --- | --- |
+| `domain/task/model.ts` | `packages/core/src/contract/types/task.ts` |
+| `domain/repo-mirror/model.ts` | `packages/core/src/contract/types/repoMirror.ts` |
+| `domain/*/errors.ts` | 对应 Contract 类型或模块 Service 邻近文件 |
+| `application/use-cases/*.ts` | `packages/core/src/module/task/service/*TaskService.ts` |
+| `application/task/*.ts` | Task 模块内的命令 Service 或共享辅助 Service |
+| `application/repo-mirrors/repo-mirror-manager.ts` | 八个独立 RepoMirror 命令 Service |
+| `application/repo-mirrors/configured-repo-mirror-resolver.ts` | `ResolveRepoMirrorService.ts` |
+| `application/uninstall/gits-uninstaller.ts` | `UninstallService.ts` |
+| `application/ports/*.ts` | 按新 Service 职责整理；每个可注入 Service 在 `contract/interface` 声明接口与 Identifier |
+| `infrastructure/git/*` | 根 `service/GitService.ts` 或其邻近私有实现 |
+| `infrastructure/filesystem/*` | 根 `service/FileSystemService.ts` 或所属业务模块 |
+| `infrastructure/process/*` | 根 `service/ProcessService.ts` |
+| `infrastructure/repo-mirrors/*` | Core 的 repoMirror 模块 Service |
+| `infrastructure/scheduler/*` | Core 的 repoMirror 模块 Service |
+| `presentation/cli/routes/*` | `apps/cli/src/module/*/service/*Command.ts` |
+| `presentation/cli/presenters/*` | `apps/cli/src/service/CliOutputService.ts` 及邻近类 |
+| `presentation/cli/services.ts` | 删除；由 ReDI 和 `bootstrap/container.ts` 取代 |
+| `getApplicationServices()` | 删除；改为构造器注入 |
+| `setApplicationServicesForTesting()` | 删除；测试使用独立 Injector 和替代绑定 |
 
 旧 port 不必机械保留原名，应按新的 Service 职责重新整理；但凡一个 Service 通过构造器注入另一个 Service，就必须依赖 `contract/interface` 中的接口 Identifier。只有不参与注入的模块私有纯函数、值对象和实现细节可以不额外声明接口。
 
@@ -851,15 +850,15 @@ installTask     -> InstallTaskService.execute()
 
 放置判断不再依赖感觉：
 
-| 问题                                  | 放置位置                                              |
-| ------------------------------------- | ----------------------------------------------------- |
-| 这是 CLI 参数、确认、显示或退出码吗？ | `apps/cli`                                            |
-| 这是一个公开命令的业务流程吗？        | `packages/core/module/<module>/service/XxxService.ts` |
-| 被多个业务模块共同使用吗？            | `packages/core/service`                               |
-| 只被一个模块内部复用吗？              | 该模块的 `service`                                    |
-| 会作为构造器中的 Service 依赖吗？     | 根 `contract/interface` 增加接口和 Identifier         |
-| 只是类内部私有实现或纯函数吗？        | 留在相邻文件，不进入 DI                               |
-| 只是纯类型且会跨包传递吗？            | 根 `contract/types`                                   |
+| 问题 | 放置位置 |
+| --- | --- |
+| 这是 CLI 参数、确认、显示或退出码吗？ | `apps/cli` |
+| 这是一个公开命令的业务流程吗？ | `packages/core/module/<module>/service/XxxService.ts` |
+| 被多个业务模块共同使用吗？ | `packages/core/service` |
+| 只被一个模块内部复用吗？ | 该模块的 `service` |
+| 会作为构造器中的 Service 依赖吗？ | 根 `contract/interface` 增加接口和 Identifier |
+| 只是类内部私有实现或纯函数吗？ | 留在相邻文件，不进入 DI |
+| 只是纯类型且会跨包传递吗？ | 根 `contract/types` |
 
 ## 12. 测试策略
 

@@ -2,6 +2,8 @@ packages:
   - apps/*
   - packages/*
 catalog:
+  '@commitlint/cli': 21.2.2
+  '@commitlint/config-conventional': 21.2.2
   '@bybrave/proper-lockfile2': 5.0.0
   '@scaffdog/core': 4.1.0
   '@scaffdog/engine': 4.1.0
@@ -10,14 +12,18 @@ catalog:
   cron-parser: 5.10.0
   incur: 0.5.1
   jsonc-parser: 3.3.1
+  lefthook: 2.1.14
   listr2: 11.1.0
   oxfmt: 0.65.0
   oxlint: 1.80.0
+  oxlint-tsgolint: 7.0.2001
   pino: 10.3.1
   plist: 5.0.0
+  relizy: 1.4.9
   table: 6.9.0
   tsdown: 0.23.0
   tsx: 4.23.13
   typescript: 7.0.2
+  ultracite: 7.12.0
 allowBuilds:
   esbuild: true

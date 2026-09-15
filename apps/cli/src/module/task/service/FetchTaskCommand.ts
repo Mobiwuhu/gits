@@ -2,19 +2,18 @@ import { IFetchTaskService } from '@gits/core'
 import { Inject } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 
-import {
-  ICliOutputService,
-  ICliRuntimeService,
-  type CliContext,
-  type CliInstance,
-  type ICliCommand,
+import { ICliOutputService, ICliRuntimeService } from '../../../contract/index'
+import type {
+  CliContext,
+  CliInstance,
+  ICliCommand,
 } from '../../../contract/index'
 
 export class FetchTaskCommand implements ICliCommand {
   constructor(
     @Inject(IFetchTaskService) private readonly service: IFetchTaskService,
     @Inject(ICliOutputService) private readonly output: ICliOutputService,
-    @Inject(ICliRuntimeService) private readonly runtime: ICliRuntimeService,
+    @Inject(ICliRuntimeService) private readonly runtime: ICliRuntimeService
   ) {}
 
   register(cli: CliInstance): void {
@@ -23,9 +22,13 @@ export class FetchTaskCommand implements ICliCommand {
       Cli.command({
         alias: { jobs: 'j' },
         args: z.object({ repos: z.array(z.string()).default([]) }),
-        description: 'Fetch origin and prune remote-tracking refs for repositories.',
+        description:
+          'Fetch origin and prune remote-tracking refs for repositories.',
         options: z.object({
-          jobs: z.string().optional().describe('Maximum concurrent network jobs'),
+          jobs: z
+            .string()
+            .optional()
+            .describe('Maximum concurrent network jobs'),
         }),
         run: async (rawContext) => {
           const context = rawContext as CliContext & {
@@ -46,10 +49,15 @@ export class FetchTaskCommand implements ICliCommand {
                 ...(jobs === undefined ? {} : { jobs }),
               })
             },
-            [{ command: 'status', description: 'Inspect refreshed repository state' }],
+            [
+              {
+                command: 'status',
+                description: 'Inspect refreshed repository state',
+              },
+            ]
           )
         },
-      }),
+      })
     )
   }
 }

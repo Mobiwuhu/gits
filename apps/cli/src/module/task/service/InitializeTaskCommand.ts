@@ -2,19 +2,19 @@ import { IInitializeTaskService } from '@gits/core'
 import { Inject } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 
-import {
-  ICliOutputService,
-  ICliRuntimeService,
-  type CliContext,
-  type CliInstance,
-  type ICliCommand,
+import { ICliOutputService, ICliRuntimeService } from '../../../contract/index'
+import type {
+  CliContext,
+  CliInstance,
+  ICliCommand,
 } from '../../../contract/index'
 
 export class InitializeTaskCommand implements ICliCommand {
   constructor(
-    @Inject(IInitializeTaskService) private readonly service: IInitializeTaskService,
+    @Inject(IInitializeTaskService)
+    private readonly service: IInitializeTaskService,
     @Inject(ICliOutputService) private readonly output: ICliOutputService,
-    @Inject(ICliRuntimeService) private readonly runtime: ICliRuntimeService,
+    @Inject(ICliRuntimeService) private readonly runtime: ICliRuntimeService
   ) {}
 
   register(cli: CliInstance): void {
@@ -39,12 +39,19 @@ export class InitializeTaskCommand implements ICliCommand {
               this.service.execute({
                 root: await this.runtime.commandRoot(context),
                 signal,
-                ...(context.options.scan === undefined ? {} : { scanPath: context.options.scan }),
+                ...(context.options.scan === undefined
+                  ? {}
+                  : { scanPath: context.options.scan }),
               }),
-            [{ command: 'install', description: 'Prepare configured repositories' }],
+            [
+              {
+                command: 'install',
+                description: 'Prepare configured repositories',
+              },
+            ]
           )
         },
-      }),
+      })
     )
   }
 }

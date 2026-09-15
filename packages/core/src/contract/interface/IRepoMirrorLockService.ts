@@ -1,4 +1,5 @@
-import { createIdentifier, type IdentifierDecorator } from '@wendellhu/redi'
+import { createIdentifier } from '@wendellhu/redi'
+import type { IdentifierDecorator } from '@wendellhu/redi'
 
 import type { RepoMirrorLockRelease } from '../types/index'
 
@@ -6,11 +7,11 @@ export interface IRepoMirrorLockService {
   acquireConfig(): Promise<RepoMirrorLockRelease>
   acquireFetchSlot(
     maximum: number,
-    options?: Readonly<{ signal?: AbortSignal; wait?: boolean }>,
+    options?: Readonly<{ signal?: AbortSignal; wait?: boolean }>
   ): Promise<RepoMirrorLockRelease | null>
   acquireMirror(
     name: string,
-    options?: Readonly<{ wait?: boolean }>,
+    options?: Readonly<{ wait?: boolean }>
   ): Promise<RepoMirrorLockRelease | null>
 }
 

@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict'
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { describe, it } from 'node:test'
@@ -7,8 +14,8 @@ import { describe, it } from 'node:test'
 import { TaskScaffoldService } from './TaskScaffoldService'
 import { TaskTemplateImportService } from './TaskTemplateImportService'
 
-describe('TaskTemplateImportService', () => {
-  it('copies every source task entry except repos', async () => {
+void describe('TaskTemplateImportService', () => {
+  void it('copies every source task entry except repos', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'gits-template-import-test-'))
     const source = resolve(root, 'source-task')
     const target = resolve(root, 'target-task')
@@ -52,34 +59,55 @@ describe('TaskTemplateImportService', () => {
         await writeFile(resolve(source, path), content)
       }
       await mkdir(resolve(source, 'repos/api/.git'), { recursive: true })
-      await writeFile(resolve(source, 'repos/AGENTS.md'), 'source repository instructions\n')
-      await writeFile(resolve(source, 'repos/api/package.json'), '{"name":"api"}\n')
-      await writeFile(resolve(source, 'repos/api/.git/HEAD'), 'ref: refs/heads/main\n')
+      await writeFile(
+        resolve(source, 'repos/AGENTS.md'),
+        'source repository instructions\n'
+      )
+      await writeFile(
+        resolve(source, 'repos/api/package.json'),
+        '{"name":"api"}\n'
+      )
+      await writeFile(
+        resolve(source, 'repos/api/.git/HEAD'),
+        'ref: refs/heads/main\n'
+      )
 
       await new TaskScaffoldService().ensure(target)
 
-      const imported = await createTemplateImporter().importTemplate(source, target)
+      const imported = await createTemplateImporter().importTemplate(
+        source,
+        target
+      )
       assert.deepEqual(
         imported.repositories.map((repository) => repository.name),
-        ['api', 'web'],
+        ['api', 'web']
       )
-      assert.equal(await readFile(resolve(target, 'task.config.jsonc'), 'utf8'), sourceConfig)
-      for (const [path, content] of copiedFiles) {
-        assert.equal(await readFile(resolve(target, path), 'utf8'), content)
-      }
-      await assert.rejects(() => access(resolve(target, 'repos/api')))
-      assert.match(await readFile(resolve(target, 'repos/AGENTS.md'), 'utf8'), /独立 Git 仓库/u)
-      assert.equal(await readFile(resolve(source, 'task.config.jsonc'), 'utf8'), sourceConfig)
       assert.equal(
-        await readFile(resolve(source, 'repos/api/package.json'), 'utf8'),
-        '{"name":"api"}\n',
+        await readFile(resolve(target, 'task.config.jsonc'), 'utf-8'),
+        sourceConfig
+      )
+      for (const [path, content] of copiedFiles) {
+        assert.equal(await readFile(resolve(target, path), 'utf-8'), content)
+      }
+      await assert.rejects(async () => access(resolve(target, 'repos/api')))
+      assert.match(
+        await readFile(resolve(target, 'repos/AGENTS.md'), 'utf-8'),
+        /独立 Git 仓库/u
+      )
+      assert.equal(
+        await readFile(resolve(source, 'task.config.jsonc'), 'utf-8'),
+        sourceConfig
+      )
+      assert.equal(
+        await readFile(resolve(source, 'repos/api/package.json'), 'utf-8'),
+        '{"name":"api"}\n'
       )
     } finally {
       await rm(root, { force: true, recursive: true })
     }
   })
 
-  it('does not overwrite a non-placeholder target configuration', async () => {
+  void it('does not overwrite a non-placeholder target configuration', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'gits-template-import-test-'))
     const source = resolve(root, 'source-task')
     const target = resolve(root, 'target-task')
@@ -94,42 +122,53 @@ describe('TaskTemplateImportService', () => {
       await writeFile(resolve(target, 'task.config.jsonc'), targetConfig)
 
       await assert.rejects(
-        () => createTemplateImporter().importTemplate(source, target),
-        /refusing to overwrite/u,
+        async () => createTemplateImporter().importTemplate(source, target),
+        /refusing to overwrite/u
       )
-      assert.equal(await readFile(resolve(target, 'task.config.jsonc'), 'utf8'), targetConfig)
-      await assert.rejects(() => access(resolve(target, 'scripts/imported.sh')))
+      assert.equal(
+        await readFile(resolve(target, 'task.config.jsonc'), 'utf-8'),
+        targetConfig
+      )
+      await assert.rejects(async () =>
+        access(resolve(target, 'scripts/imported.sh'))
+      )
     } finally {
       await rm(root, { force: true, recursive: true })
     }
   })
 
-  it('does not overwrite customized task instructions', async () => {
+  void it('does not overwrite customized task instructions', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'gits-template-import-test-'))
     const source = resolve(root, 'source-task')
     const target = resolve(root, 'target-task')
 
     try {
       await mkdir(source)
-      await writeFile(resolve(source, 'task.config.jsonc'), validConfiguration('source'))
+      await writeFile(
+        resolve(source, 'task.config.jsonc'),
+        validConfiguration('source')
+      )
       await writeFile(resolve(source, 'AGENTS.md'), 'source instructions\n')
       await new TaskScaffoldService().ensure(target)
-      await writeFile(resolve(target, 'AGENTS.md'), 'customized target instructions\n')
+      await writeFile(
+        resolve(target, 'AGENTS.md'),
+        'customized target instructions\n'
+      )
 
       await assert.rejects(
-        () => createTemplateImporter().importTemplate(source, target),
-        /Target AGENTS\.md contains non-default content/u,
+        async () => createTemplateImporter().importTemplate(source, target),
+        /Target AGENTS\.md contains non-default content/u
       )
       assert.equal(
-        await readFile(resolve(target, 'AGENTS.md'), 'utf8'),
-        'customized target instructions\n',
+        await readFile(resolve(target, 'AGENTS.md'), 'utf-8'),
+        'customized target instructions\n'
       )
     } finally {
       await rm(root, { force: true, recursive: true })
     }
   })
 
-  it('does not overwrite an existing target entry with user content', async () => {
+  void it('does not overwrite an existing target entry with user content', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'gits-template-import-test-'))
     const source = resolve(root, 'source-task')
     const target = resolve(root, 'target-task')
@@ -137,25 +176,38 @@ describe('TaskTemplateImportService', () => {
     try {
       await mkdir(resolve(source, '.workspace'), { recursive: true })
       await mkdir(resolve(source, 'docs'), { recursive: true })
-      await writeFile(resolve(source, 'task.config.jsonc'), validConfiguration('source'))
-      await writeFile(resolve(source, '.workspace/settings.json'), '{"source":true}\n')
+      await writeFile(
+        resolve(source, 'task.config.jsonc'),
+        validConfiguration('source')
+      )
+      await writeFile(
+        resolve(source, '.workspace/settings.json'),
+        '{"source":true}\n'
+      )
       await writeFile(resolve(source, 'docs/imported.md'), 'imported\n')
       await new TaskScaffoldService().ensure(target)
       await mkdir(resolve(target, '.workspace'), { recursive: true })
-      await writeFile(resolve(target, '.workspace/settings.json'), '{"target":true}\n')
+      await writeFile(
+        resolve(target, '.workspace/settings.json'),
+        '{"target":true}\n'
+      )
 
       await assert.rejects(
-        () => createTemplateImporter().importTemplate(source, target),
-        /Target \.workspace contains non-default content/u,
+        async () => createTemplateImporter().importTemplate(source, target),
+        /Target \.workspace contains non-default content/u
       )
       assert.equal(
-        await readFile(resolve(target, '.workspace/settings.json'), 'utf8'),
-        '{"target":true}\n',
+        await readFile(resolve(target, '.workspace/settings.json'), 'utf-8'),
+        '{"target":true}\n'
       )
-      await assert.rejects(() => access(resolve(target, 'docs/imported.md')))
+      await assert.rejects(async () =>
+        access(resolve(target, 'docs/imported.md'))
+      )
       assert.equal(
-        isDefaultConfiguration(await readFile(resolve(target, 'task.config.jsonc'), 'utf8')),
-        true,
+        isDefaultConfiguration(
+          await readFile(resolve(target, 'task.config.jsonc'), 'utf-8')
+        ),
+        true
       )
     } finally {
       await rm(root, { force: true, recursive: true })
@@ -171,9 +223,9 @@ function validConfiguration(name: string): string {
   return JSON.stringify({
     repos: {
       [name]: {
-        url: 'git@host:team/' + name + '.git',
         branch: 'fix/save-button',
         from: 'origin/main',
+        url: `git@host:team/${name}.git`,
       },
     },
   })

@@ -1,5 +1,4 @@
-import type { GitCommandResult } from '../../../contract/index'
-import type { CommandError } from '../../../contract/index'
+import type { GitCommandResult, CommandError } from '../../../contract/index'
 
 export function gitCommandError(result: GitCommandResult): CommandError {
   const output = result.stderr.trim() || result.stdout.trim()
@@ -8,7 +7,9 @@ export function gitCommandError(result: GitCommandResult): CommandError {
     message:
       output ||
       `git ${result.args.join(' ')} ${
-        result.aborted ? 'was interrupted' : `exited with code ${result.exitCode ?? 'unknown'}`
+        result.aborted
+          ? 'was interrupted'
+          : `exited with code ${result.exitCode ?? 'unknown'}`
       }`,
   }
 }

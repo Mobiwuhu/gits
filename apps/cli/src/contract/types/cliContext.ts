@@ -17,6 +17,6 @@ export interface CliContext {
       readonly cta?: {
         readonly commands: readonly SuggestedCommand[]
       }
-    },
+    }
   ) => never
 }

@@ -2,8 +2,8 @@ import {
   GitsError,
   IncompleteConfigurationError,
   initialRepositoryResult,
-  type RepositoryCommandResult,
 } from '@gits/core'
+import type { RepositoryCommandResult } from '@gits/core'
 
 import { exitCode } from '../contract/index'
 import type {
@@ -16,7 +16,9 @@ import type {
 export class CliErrorService implements ICliErrorService {
   command(command: string, error: unknown): CommandPresentation {
     if (error instanceof IncompleteConfigurationError) {
-      const repos = error.repositories.map((repository) => incompleteResult(repository, error))
+      const repos = error.repositories.map((repository) =>
+        incompleteResult(repository, error)
+      )
       return {
         exitCode: error.exitCode,
         output: { command, ok: false, repos },
@@ -33,7 +35,10 @@ export class CliErrorService implements ICliErrorService {
 
     if (isInterrupted(error)) {
       return {
-        diagnostic: { code: 'interrupted', message: 'Command interrupted by user.' },
+        diagnostic: {
+          code: 'interrupted',
+          message: 'Command interrupted by user.',
+        },
         exitCode: exitCode.interrupted,
         output: { command, ok: false, repos: [] },
       }
@@ -47,24 +52,31 @@ export class CliErrorService implements ICliErrorService {
     }
   }
 
-  repoMirror(command: string, error: unknown, aborted: boolean): RepoMirrorPresentation {
-    const known = error instanceof GitsError
+  repoMirror(
+    command: string,
+    error: unknown,
+    aborted: boolean
+  ): RepoMirrorPresentation {
     const interrupted = aborted || isInterrupted(error)
-    const code = known ? error.code : interrupted ? 'interrupted' : 'internal-error'
+    const code = failureCode(error, interrupted)
     const message = errorMessage(error)
     return {
-      exitCode: known ? error.exitCode : interrupted ? exitCode.interrupted : exitCode.failure,
-      output: { command, mirrors: [], ok: false, warnings: [`${code}: ${message}`] },
+      exitCode: failureExitCode(error, interrupted),
+      output: {
+        command,
+        mirrors: [],
+        ok: false,
+        warnings: [`${code}: ${message}`],
+      },
     }
   }
 
   uninstall(error: unknown, aborted: boolean): UninstallPresentation {
-    const known = error instanceof GitsError
     const interrupted = aborted || isInterrupted(error)
-    const code = known ? error.code : interrupted ? 'interrupted' : 'internal-error'
+    const code = failureCode(error, interrupted)
     const message = errorMessage(error)
     return {
-      exitCode: known ? error.exitCode : interrupted ? exitCode.interrupted : exitCode.failure,
+      exitCode: failureExitCode(error, interrupted),
       output: {
         command: 'uninstall',
         dryRun: false,
@@ -81,7 +93,7 @@ export class CliErrorService implements ICliErrorService {
 
 function incompleteResult(
   repository: IncompleteConfigurationError['repositories'][number],
-  error: IncompleteConfigurationError,
+  error: IncompleteConfigurationError
 ): RepositoryCommandResult {
   return {
     ...initialRepositoryResult(repository),
@@ -92,10 +104,31 @@ function incompleteResult(
 function isInterrupted(error: unknown): boolean {
   return (
     error instanceof Error &&
-    (error.name === 'AbortError' || error.message.toLowerCase().includes('aborted'))
+    (error.name === 'AbortError' ||
+      error.message.toLowerCase().includes('aborted'))
   )
 }
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function failureCode(error: unknown, interrupted: boolean): string {
+  if (error instanceof GitsError) {
+    return error.code
+  }
+  if (interrupted) {
+    return 'interrupted'
+  }
+  return 'internal-error'
+}
+
+function failureExitCode(error: unknown, interrupted: boolean): number {
+  if (error instanceof GitsError) {
+    return error.exitCode
+  }
+  if (interrupted) {
+    return exitCode.interrupted
+  }
+  return exitCode.failure
 }

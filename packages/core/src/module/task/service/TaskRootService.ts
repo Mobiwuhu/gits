@@ -1,7 +1,8 @@
 import { access, stat } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 
-import { GitsError, type ITaskRootService } from '../../../contract/index'
+import { GitsError } from '../../../contract/index'
+import type { ITaskRootService } from '../../../contract/index'
 
 const configurationName = 'task.config.jsonc'
 
@@ -12,11 +13,19 @@ export class TaskRootService implements ITaskRootService {
     try {
       const metadata = await stat(directory)
       if (!metadata.isDirectory()) {
-        throw new GitsError('invalid-directory', `Not a directory: ${directory}`)
+        throw new GitsError(
+          'invalid-directory',
+          `Not a directory: ${directory}`
+        )
       }
     } catch (error) {
-      if (error instanceof GitsError) throw error
-      throw new GitsError('invalid-directory', `Cannot access directory: ${directory}`)
+      if (error instanceof GitsError) {
+        throw error
+      }
+      throw new GitsError(
+        'invalid-directory',
+        `Cannot access directory: ${directory}`
+      )
     }
 
     return directory
@@ -34,7 +43,7 @@ export class TaskRootService implements ITaskRootService {
         if (parent === current) {
           throw new GitsError(
             'task-not-found',
-            `No ${configurationName} found from ${start} through its parent directories.`,
+            `No ${configurationName} found from ${start} through its parent directories.`
           )
         }
         current = parent

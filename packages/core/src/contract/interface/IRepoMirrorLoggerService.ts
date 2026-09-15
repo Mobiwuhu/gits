@@ -1,4 +1,5 @@
-import { createIdentifier, type IdentifierDecorator } from '@wendellhu/redi'
+import { createIdentifier } from '@wendellhu/redi'
+import type { IdentifierDecorator } from '@wendellhu/redi'
 
 import type {
   RepoMirrorInvocationSource,
@@ -9,7 +10,10 @@ import type {
 export interface IRepoMirrorLoggerService {
   readLastRun(name: string): Promise<RepoMirrorRunState | null>
   readLines(name: string, maximum: number): Promise<readonly string[]>
-  start(name: string, source: RepoMirrorInvocationSource): Promise<RepoMirrorLogSession>
+  start(
+    name: string,
+    source: RepoMirrorInvocationSource
+  ): Promise<RepoMirrorLogSession>
 }
 
 export const IRepoMirrorLoggerService: IdentifierDecorator<IRepoMirrorLoggerService> =

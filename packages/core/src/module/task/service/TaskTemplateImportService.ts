@@ -1,4 +1,13 @@
-import { cp, lstat, mkdir, readFile, readdir, rename, rm, stat } from 'node:fs/promises'
+import {
+  cp,
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+} from 'node:fs/promises'
 import { dirname, relative, resolve, sep } from 'node:path'
 
 import { Inject } from '@wendellhu/redi'
@@ -8,8 +17,10 @@ import {
   GitsError,
   ITaskScaffoldService,
   UsageError,
-  type ITaskTemplateImportService,
-  type TaskConfiguration,
+} from '../../../contract/index'
+import type {
+  ITaskTemplateImportService,
+  TaskConfiguration,
 } from '../../../contract/index'
 import { parseTaskConfiguration } from './TaskConfigurationService'
 
@@ -29,21 +40,37 @@ interface ImportEntry {
 }
 
 export class TaskTemplateImportService implements ITaskTemplateImportService {
-  constructor(@Inject(ITaskScaffoldService) private readonly scaffold: ITaskScaffoldService) {}
+  constructor(
+    @Inject(ITaskScaffoldService)
+    private readonly scaffold: ITaskScaffoldService
+  ) {}
 
-  async importTemplate(sourceRoot: string, targetRoot: string): Promise<TaskConfiguration> {
+  async importTemplate(
+    sourceRoot: string,
+    targetRoot: string
+  ): Promise<TaskConfiguration> {
     const source = resolve(sourceRoot)
     const target = resolve(targetRoot)
     if (source === target) {
-      throw new UsageError('--scan source directory must differ from the target task directory.')
+      throw new UsageError(
+        '--scan source directory must differ from the target task directory.'
+      )
     }
 
-    await this.assertDirectory(source, 'scan directory', 'scan-directory-invalid')
+    await this.assertDirectory(
+      source,
+      'scan directory',
+      'scan-directory-invalid'
+    )
 
     const sourceConfigurationPath = resolve(source, configurationFileName)
     const targetConfigurationPath = resolve(target, configurationFileName)
     const content = await this.readSourceConfiguration(sourceConfigurationPath)
-    const configuration = parseTaskConfiguration(target, targetConfigurationPath, content)
+    const configuration = parseTaskConfiguration(
+      target,
+      targetConfigurationPath,
+      content
+    )
     const entries = await this.collectEntries(source, target)
 
     for (const entry of entries) {
@@ -54,14 +81,19 @@ export class TaskTemplateImportService implements ITaskTemplateImportService {
     return configuration
   }
 
-  private async collectEntries(source: string, target: string): Promise<readonly ImportEntry[]> {
+  private async collectEntries(
+    source: string,
+    target: string
+  ): Promise<readonly ImportEntry[]> {
     const sourceEntries = await readdir(source, { withFileTypes: true })
     const entries: ImportEntry[] = []
 
     for (const sourceEntry of sourceEntries.toSorted((left, right) =>
-      left.name.localeCompare(right.name),
+      left.name.localeCompare(right.name)
     )) {
-      if (sourceEntry.name === repositoriesDirectoryName) continue
+      if (sourceEntry.name === repositoriesDirectoryName) {
+        continue
+      }
 
       const sourcePath = resolve(source, sourceEntry.name)
       const metadata = await lstat(sourcePath)
@@ -73,7 +105,7 @@ export class TaskTemplateImportService implements ITaskTemplateImportService {
       } else {
         throw new GitsError(
           'scan-entry-invalid',
-          `Source task entry is not a file or directory: ${sourcePath}`,
+          `Source task entry is not a file or directory: ${sourcePath}`
         )
       }
 
@@ -90,51 +122,70 @@ export class TaskTemplateImportService implements ITaskTemplateImportService {
 
   private async readSourceConfiguration(path: string): Promise<string> {
     try {
-      return await readFile(path, 'utf8')
+      return await readFile(path, 'utf-8')
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       throw new GitsError(
         'scan-config-unavailable',
-        `Cannot read source ${configurationFileName}: ${message}`,
+        `Cannot read source ${configurationFileName}: ${message}`
       )
     }
   }
 
-  private async assertTargetCanReceive(targetRoot: string, entry: ImportEntry): Promise<void> {
-    if (!(await this.pathExists(entry.targetPath))) return
+  private async assertTargetCanReceive(
+    targetRoot: string,
+    entry: ImportEntry
+  ): Promise<void> {
+    if (!(await this.pathExists(entry.targetPath))) {
+      return
+    }
 
     const metadata = await lstat(entry.targetPath)
     const isReplaceable =
       entry.kind === ImportEntryKind.Directory
         ? metadata.isDirectory() &&
-          (await this.isReplaceableScaffoldDirectory(targetRoot, entry.targetPath))
+          (await this.isReplaceableScaffoldDirectory(
+            targetRoot,
+            entry.targetPath
+          ))
         : metadata.isFile() &&
           (await this.isReplaceableScaffoldFile(
             targetRoot,
             entry.relativePath,
-            await readFile(entry.targetPath, 'utf8'),
+            await readFile(entry.targetPath, 'utf-8')
           ))
 
     if (!isReplaceable) {
       throw new ConfigurationError(
-        `Target ${entry.relativePath} contains non-default content; refusing to overwrite it.`,
+        `Target ${entry.relativePath} contains non-default content; refusing to overwrite it.`
       )
     }
   }
 
-  private async isReplaceableScaffoldDirectory(root: string, path: string): Promise<boolean> {
+  private async isReplaceableScaffoldDirectory(
+    root: string,
+    path: string
+  ): Promise<boolean> {
     const entries = await readdir(path, { withFileTypes: true })
     for (const entry of entries) {
       const entryPath = resolve(path, entry.name)
       if (entry.isDirectory()) {
-        if (!(await this.isReplaceableScaffoldDirectory(root, entryPath))) return false
+        if (!(await this.isReplaceableScaffoldDirectory(root, entryPath))) {
+          return false
+        }
         continue
       }
-      if (!entry.isFile()) return false
+      if (!entry.isFile()) {
+        return false
+      }
 
       const relativePath = relative(root, entryPath).split(sep).join('/')
-      const content = await readFile(entryPath, 'utf8')
-      if (!(await this.isReplaceableScaffoldFile(root, relativePath, content))) return false
+      const content = await readFile(entryPath, 'utf-8')
+      if (
+        !(await this.isReplaceableScaffoldFile(root, relativePath, content))
+      ) {
+        return false
+      }
     }
     return true
   }
@@ -142,13 +193,22 @@ export class TaskTemplateImportService implements ITaskTemplateImportService {
   private async isReplaceableScaffoldFile(
     root: string,
     relativePath: string,
-    content: string,
+    content: string
   ): Promise<boolean> {
-    return content.length === 0 || this.scaffold.isDefaultContent(root, relativePath, content)
+    return (
+      content.length === 0 ||
+      this.scaffold.isDefaultContent(root, relativePath, content)
+    )
   }
 
-  private async importTransaction(target: string, entries: readonly ImportEntry[]): Promise<void> {
-    const transactionPath = resolve(target, `.gits-import-${process.pid}-${Date.now()}`)
+  private async importTransaction(
+    target: string,
+    entries: readonly ImportEntry[]
+  ): Promise<void> {
+    const transactionPath = resolve(
+      target,
+      `.gits-import-${process.pid}-${Date.now()}`
+    )
     const stagedRoot = resolve(transactionPath, 'staged')
     const backupRoot = resolve(transactionPath, 'backup')
     const movedEntries: ImportEntry[] = []
@@ -162,7 +222,9 @@ export class TaskTemplateImportService implements ITaskTemplateImportService {
         await this.stageEntry(stagedRoot, entry)
       }
       for (const entry of entries) {
-        if (!(await this.pathExists(entry.targetPath))) continue
+        if (!(await this.pathExists(entry.targetPath))) {
+          continue
+        }
         const backupPath = resolve(backupRoot, entry.relativePath)
         await mkdir(dirname(backupPath), { recursive: true })
         await rename(entry.targetPath, backupPath)
@@ -177,13 +239,19 @@ export class TaskTemplateImportService implements ITaskTemplateImportService {
     } catch (error) {
       await this.rollback(backupRoot, movedEntries, writtenEntries)
       const message = error instanceof Error ? error.message : String(error)
-      throw new GitsError('template-import-failed', `Cannot import task template: ${message}`)
+      throw new GitsError(
+        'template-import-failed',
+        `Cannot import task template: ${message}`
+      )
     } finally {
       await rm(transactionPath, { force: true, recursive: true })
     }
   }
 
-  private async stageEntry(stagedRoot: string, entry: ImportEntry): Promise<void> {
+  private async stageEntry(
+    stagedRoot: string,
+    entry: ImportEntry
+  ): Promise<void> {
     const stagedPath = resolve(stagedRoot, entry.relativePath)
     await mkdir(dirname(stagedPath), { recursive: true })
     await cp(entry.sourcePath, stagedPath, {
@@ -197,7 +265,7 @@ export class TaskTemplateImportService implements ITaskTemplateImportService {
   private async rollback(
     backupRoot: string,
     movedEntries: readonly ImportEntry[],
-    writtenEntries: readonly ImportEntry[],
+    writtenEntries: readonly ImportEntry[]
   ): Promise<void> {
     try {
       for (const entry of writtenEntries.toReversed()) {
@@ -209,18 +277,24 @@ export class TaskTemplateImportService implements ITaskTemplateImportService {
         await rename(backupPath, entry.targetPath)
       }
     } catch {
-      // Preserve the original import error; recovery may be inspected manually.
+      // 保留原始导入错误，恢复现场可供后续人工检查。
     }
   }
 
-  private async assertDirectory(path: string, label: string, code: string): Promise<void> {
+  private async assertDirectory(
+    path: string,
+    label: string,
+    code: string
+  ): Promise<void> {
     try {
       const metadata = await stat(path)
       if (!metadata.isDirectory()) {
         throw new GitsError(code, `${label} is not a directory: ${path}`)
       }
     } catch (error) {
-      if (error instanceof GitsError) throw error
+      if (error instanceof GitsError) {
+        throw error
+      }
       const message = error instanceof Error ? error.message : String(error)
       throw new GitsError(code, `Cannot access ${label} ${path}: ${message}`)
     }

@@ -8,9 +8,13 @@ export class FileSystemService implements IFileSystemService {
   async directorySize(path: string): Promise<number | null> {
     try {
       const metadata = await stat(path)
-      if (!metadata.isDirectory()) return metadata.size
+      if (!metadata.isDirectory()) {
+        return metadata.size
+      }
     } catch (error) {
-      if (this.hasCode(error, 'ENOENT')) return null
+      if (this.hasCode(error, 'ENOENT')) {
+        return null
+      }
       throw error
     }
 
@@ -18,25 +22,35 @@ export class FileSystemService implements IFileSystemService {
     const pending = [path]
     while (pending.length > 0) {
       const directory = pending.pop()
-      if (directory === undefined) break
+      if (directory === undefined) {
+        break
+      }
       const entries = await readdir(directory, { withFileTypes: true })
       for (const entry of entries) {
         const child = resolve(directory, entry.name)
-        if (entry.isDirectory()) pending.push(child)
-        else if (entry.isFile()) total += (await stat(child)).size
+        if (entry.isDirectory()) {
+          pending.push(child)
+        } else if (entry.isFile()) {
+          const metadata = await stat(child)
+          total += metadata.size
+        }
       }
     }
     return total
   }
 
-  async writeFileAtomically(destination: string, content: string, mode = 0o600): Promise<void> {
+  async writeFileAtomically(
+    destination: string,
+    content: string,
+    mode = 0o600
+  ): Promise<void> {
     const parent = dirname(destination)
     await mkdir(parent, { mode: 0o700, recursive: true })
     const temporary = resolve(parent, `.${randomUUID()}.tmp`)
     const handle = await open(temporary, 'wx', mode)
 
     try {
-      await handle.writeFile(content, 'utf8')
+      await handle.writeFile(content, 'utf-8')
       await handle.sync()
     } finally {
       await handle.close()
@@ -52,6 +66,11 @@ export class FileSystemService implements IFileSystemService {
   }
 
   private hasCode(error: unknown, code: string): boolean {
-    return typeof error === 'object' && error !== null && 'code' in error && error.code === code
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === code
+    )
   }
 }

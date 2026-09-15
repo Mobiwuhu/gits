@@ -8,18 +8,22 @@ import {
   IRepoMirrorLockService,
   IRepoMirrorStoreService,
   RepoMirrorRepositoryState,
-  type IResolveRepoMirrorService,
-  type RepoMirrorLease,
-  type RepoMirrorResolution,
+} from '../../../contract/index'
+import type {
+  IResolveRepoMirrorService,
+  RepoMirrorLease,
+  RepoMirrorResolution,
 } from '../../../contract/index'
 import { resolveRepoMirrorUrl } from './repoMirrorIdentity'
 
 export class ResolveRepoMirrorService implements IResolveRepoMirrorService {
   constructor(
-    @Inject(IRepoMirrorStoreService) private readonly store: IRepoMirrorStoreService,
+    @Inject(IRepoMirrorStoreService)
+    private readonly store: IRepoMirrorStoreService,
     @Inject(IRepoMirrorGitService) private readonly git: IRepoMirrorGitService,
-    @Inject(IRepoMirrorLockService) private readonly lock: IRepoMirrorLockService,
-    @Inject(IGitsPathService) private readonly paths: IGitsPathService,
+    @Inject(IRepoMirrorLockService)
+    private readonly lock: IRepoMirrorLockService,
+    @Inject(IGitsPathService) private readonly paths: IGitsPathService
   ) {}
 
   async resolve(url: string): Promise<RepoMirrorResolution> {
@@ -39,17 +43,26 @@ export class ResolveRepoMirrorService implements IResolveRepoMirrorService {
           }
         }
       }
-      if (matches.length === 0) return { lease: null }
+      if (matches.length === 0) {
+        return { lease: null }
+      }
       if (matches.length > 1) {
         return {
-          fallbackReason: 'Multiple repo mirrors match this remote; run repo-mirrors doctor.',
+          fallbackReason:
+            'Multiple repo mirrors match this remote; run repo-mirrors doctor.',
           lease: null,
         }
       }
-      const match = matches[0]
-      if (match === undefined) return { lease: null }
-      const definition = configuration.repoMirrors.find((item) => item.name === match.name)
-      if (definition === undefined) return { lease: null }
+      const [match] = matches
+      if (match === undefined) {
+        return { lease: null }
+      }
+      const definition = configuration.repoMirrors.find(
+        (item) => item.name === match.name
+      )
+      if (definition === undefined) {
+        return { lease: null }
+      }
       const release = await this.lock.acquireMirror(match.name, { wait: false })
       if (release === null) {
         return {

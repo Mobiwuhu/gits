@@ -1,4 +1,5 @@
-import { createIdentifier, type IdentifierDecorator } from '@wendellhu/redi'
+import { createIdentifier } from '@wendellhu/redi'
+import type { IdentifierDecorator } from '@wendellhu/redi'
 
 import type {
   RepoMirrorAction,
@@ -12,7 +13,7 @@ export interface IRepoMirrorViewService {
     definition: RepoMirrorDefinition,
     action: RepoMirrorAction,
     includeSize?: boolean,
-    overrides?: RepoMirrorViewOverrides,
+    overrides?: RepoMirrorViewOverrides
   ): Promise<RepoMirrorView>
   mirrorPath(name: string): string
 }

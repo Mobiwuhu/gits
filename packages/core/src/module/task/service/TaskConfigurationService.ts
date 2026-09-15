@@ -1,11 +1,16 @@
 import { readFile } from 'node:fs/promises'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 
-import { parse, printParseErrorCode, type ParseError } from 'jsonc-parser'
+import { parse, printParseErrorCode } from 'jsonc-parser'
+import type { ParseError } from 'jsonc-parser'
 
-import type { ITaskConfigurationService, RawTaskConfiguration } from '../../../contract/index'
+import type {
+  ITaskConfigurationService,
+  RawTaskConfiguration,
+  TaskConfiguration,
+  TaskRepository,
+} from '../../../contract/index'
 import { ConfigurationError } from '../../../contract/index'
-import type { TaskConfiguration, TaskRepository } from '../../../contract/index'
 
 const configurationFileName = 'task.config.jsonc'
 
@@ -26,10 +31,12 @@ export class TaskConfigurationService implements ITaskConfigurationService {
     let content: string
 
     try {
-      content = await readFile(configPath, 'utf8')
+      content = await readFile(configPath, 'utf-8')
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      throw new ConfigurationError(`Cannot read ${configurationFileName}: ${message}`)
+      throw new ConfigurationError(
+        `Cannot read ${configurationFileName}: ${message}`
+      )
     }
 
     return {
@@ -51,7 +58,7 @@ export function isDefaultTaskConfigurationTemplate(content: string): boolean {
 export function parseTaskConfiguration(
   root: string,
   configPath: string,
-  content: string,
+  content: string
 ): TaskConfiguration {
   const raw = ensureObject(parseJsonc(content), 'configuration root')
   const repos = ensureObject(raw.repos, 'repos')
@@ -61,13 +68,19 @@ export function parseTaskConfiguration(
 
   for (const [name, value] of Object.entries(repos)) {
     const parsed = parseRepository(name, value, issues)
-    if (!parsed) continue
+    if (!parsed) {
+      continue
+    }
 
     const parsedPath = resolveRepositoryPath(root, name, parsed.path, issues)
-    if (!parsedPath) continue
+    if (!parsedPath) {
+      continue
+    }
 
     if (paths.has(parsedPath.absolutePath)) {
-      issues.push(`Repository '${name}' resolves to a duplicate path: ${parsedPath.path}`)
+      issues.push(
+        `Repository '${name}' resolves to a duplicate path: ${parsedPath.path}`
+      )
       continue
     }
     paths.add(parsedPath.absolutePath)
@@ -84,7 +97,9 @@ export function parseTaskConfiguration(
     })
   }
 
-  if (repositories.length === 0) issues.push('repos must contain at least one repository.')
+  if (repositories.length === 0) {
+    issues.push('repos must contain at least one repository.')
+  }
   if (issues.length > 0) {
     throw new ConfigurationError(`Invalid ${configurationFileName}.`, issues)
   }
@@ -98,16 +113,21 @@ export function parseTaskConfiguration(
 
 function parseJsonc(content: string): unknown {
   const errors: ParseError[] = []
-  const parsed = parse(content, errors, {
+  const parsed: unknown = parse(content, errors, {
     allowTrailingComma: true,
     disallowComments: false,
   })
 
   if (errors.length > 0) {
     const diagnostics = errors
-      .map((error) => `${printParseErrorCode(error.error)} at offset ${error.offset}`)
+      .map(
+        (error) =>
+          `${printParseErrorCode(error.error)} at offset ${error.offset}`
+      )
       .join(', ')
-    throw new ConfigurationError(`Cannot parse ${configurationFileName}: ${diagnostics}`)
+    throw new ConfigurationError(
+      `Cannot parse ${configurationFileName}: ${diagnostics}`
+    )
   }
 
   return parsed
@@ -127,11 +147,11 @@ function isObject(value: unknown): value is JsonObject {
 function parseRepository(
   name: string,
   value: unknown,
-  issues: string[],
+  issues: string[]
 ): ParsedRepository | undefined {
   if (!isValidRepositoryName(name)) {
     issues.push(
-      `Repository name '${name}' must be non-empty and cannot contain '/', '\\', or '..'.`,
+      `Repository name '${name}' must be non-empty and cannot contain '/', '\\', or '..'.`
     )
     return undefined
   }
@@ -144,32 +164,44 @@ function parseRepository(
   const branch = requiredString(value.branch, `repos.${name}.branch`, issues)
   const from = requiredString(value.from, `repos.${name}.from`, issues)
   const path = optionalString(value.path, `repos.${name}.path`, issues)
-  const checkout = optionalCheckout(value.checkout, `repos.${name}.checkout`, issues)
-  const dissociate = optionalBoolean(value.dissociate, `repos.${name}.dissociate`, issues) ?? false
+  const checkout = optionalCheckout(
+    value.checkout,
+    `repos.${name}.checkout`,
+    issues
+  )
+  const dissociate =
+    optionalBoolean(value.dissociate, `repos.${name}.dissociate`, issues) ??
+    false
 
-  if (!url || !branch || !from) return undefined
+  if (url === undefined || branch === undefined || from === undefined) {
+    return undefined
+  }
   if (!from.startsWith('origin/') || from.length === 'origin/'.length) {
     issues.push(`repos.${name}.from must use the form origin/<branch>.`)
   }
 
   return {
-    url,
     branch,
     checkout,
     dissociate,
     from,
-    ...(path ? { path } : {}),
+    url,
+    ...(path === undefined ? {} : { path }),
   }
 }
 
 function optionalCheckout(
   value: unknown,
   location: string,
-  issues: string[],
+  issues: string[]
 ): readonly string[] | null {
-  if (value === undefined || value === null) return null
+  if (value === undefined || value === null) {
+    return null
+  }
   if (!Array.isArray(value) || value.length === 0) {
-    issues.push(`${location} must be a non-empty array of repository-relative directories.`)
+    issues.push(
+      `${location} must be a non-empty array of repository-relative directories.`
+    )
     return null
   }
 
@@ -188,15 +220,19 @@ function optionalCheckout(
       isAbsolute(directory) ||
       /^[A-Za-z]:\//u.test(directory) ||
       directory.includes('\\') ||
-      segments.some((segment) => segment.length === 0 || segment === '.' || segment === '..')
+      segments.some(
+        (segment) => segment.length === 0 || segment === '.' || segment === '..'
+      )
     ) {
       issues.push(
-        `${entryLocation} must be a canonical repository-relative directory without '.', '..', empty segments, or backslashes.`,
+        `${entryLocation} must be a canonical repository-relative directory without '.', '..', empty segments, or backslashes.`
       )
       continue
     }
     if (/[*?[\]]/u.test(directory)) {
-      issues.push(`${entryLocation} must name a directory and cannot contain glob characters.`)
+      issues.push(
+        `${entryLocation} must name a directory and cannot contain glob characters.`
+      )
       continue
     }
     if (/\p{Cc}/u.test(directory)) {
@@ -208,7 +244,9 @@ function optionalCheckout(
       continue
     }
     if (seen.has(directory)) {
-      issues.push(`${location} contains the duplicate directory '${directory}'.`)
+      issues.push(
+        `${location} contains the duplicate directory '${directory}'.`
+      )
       continue
     }
 
@@ -219,8 +257,14 @@ function optionalCheckout(
   return directories
 }
 
-function optionalBoolean(value: unknown, location: string, issues: string[]): boolean | undefined {
-  if (value === undefined) return undefined
+function optionalBoolean(
+  value: unknown,
+  location: string,
+  issues: string[]
+): boolean | undefined {
+  if (value === undefined) {
+    return undefined
+  }
   if (typeof value !== 'boolean') {
     issues.push(`${location} must be a boolean when present.`)
     return undefined
@@ -228,7 +272,11 @@ function optionalBoolean(value: unknown, location: string, issues: string[]): bo
   return value
 }
 
-function requiredString(value: unknown, location: string, issues: string[]): string | undefined {
+function requiredString(
+  value: unknown,
+  location: string,
+  issues: string[]
+): string | undefined {
   if (typeof value !== 'string' || value.trim().length === 0) {
     issues.push(`${location} must be a non-empty string.`)
     return undefined
@@ -236,8 +284,14 @@ function requiredString(value: unknown, location: string, issues: string[]): str
   return value.trim()
 }
 
-function optionalString(value: unknown, location: string, issues: string[]): string | undefined {
-  if (value === undefined) return undefined
+function optionalString(
+  value: unknown,
+  location: string,
+  issues: string[]
+): string | undefined {
+  if (value === undefined) {
+    return undefined
+  }
   if (typeof value !== 'string' || value.trim().length === 0) {
     issues.push(`${location} must be a non-empty string when present.`)
     return undefined
@@ -246,18 +300,25 @@ function optionalString(value: unknown, location: string, issues: string[]): str
 }
 
 function isValidRepositoryName(name: string): boolean {
-  return name.length > 0 && !name.includes('/') && !name.includes('\\') && !name.includes('..')
+  return (
+    name.length > 0 &&
+    !name.includes('/') &&
+    !name.includes('\\') &&
+    !name.includes('..')
+  )
 }
 
 function resolveRepositoryPath(
   root: string,
   name: string,
   configuredPath: string | undefined,
-  issues: string[],
+  issues: string[]
 ): { absolutePath: string; path: string } | undefined {
   const candidate = configuredPath ?? `repos/${name}`
-  if (isAbsolute(candidate) || candidate.split(/[\\/]/).includes('..')) {
-    issues.push(`repos.${name}.path must be a relative path below repos/ and cannot contain '..'.`)
+  if (isAbsolute(candidate) || candidate.split(/[\\/]/u).includes('..')) {
+    issues.push(
+      `repos.${name}.path must be a relative path below repos/ and cannot contain '..'.`
+    )
     return undefined
   }
 
@@ -270,7 +331,9 @@ function resolveRepositoryPath(
     withinRepos.startsWith(`..${sep}`) ||
     isAbsolute(withinRepos)
   ) {
-    issues.push(`repos.${name}.path must resolve beneath the task root's repos/ directory.`)
+    issues.push(
+      `repos.${name}.path must resolve beneath the task root's repos/ directory.`
+    )
     return undefined
   }
 
@@ -282,9 +345,14 @@ function resolveRepositoryPath(
 
 function isTemplateRepositorySet(repos: JsonObject): boolean {
   const entries = Object.entries(repos)
-  if (entries.length !== 1 || entries[0]?.[0] !== 'example-repo') return false
-  const value = entries[0][1]
-  if (!isObject(value)) return false
+  const [entry] = entries
+  if (entries.length !== 1 || entry?.[0] !== 'example-repo') {
+    return false
+  }
+  const [, value] = entry
+  if (!isObject(value)) {
+    return false
+  }
 
   return (
     value.url === 'git@<host>:<group>/<repo>.git' &&

@@ -2,17 +2,18 @@ import { IGetRepoMirrorLogsService } from '@gits/core'
 import { Inject } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 
-import {
-  ICliOutputService,
-  type CliContext,
-  type CliInstance,
-  type IRepoMirrorSubcommand,
+import { ICliOutputService } from '../../../contract/index'
+import type {
+  CliContext,
+  CliInstance,
+  IRepoMirrorSubcommand,
 } from '../../../contract/index'
 
 export class GetRepoMirrorLogsCommand implements IRepoMirrorSubcommand {
   constructor(
-    @Inject(IGetRepoMirrorLogsService) private readonly service: IGetRepoMirrorLogsService,
-    @Inject(ICliOutputService) private readonly output: ICliOutputService,
+    @Inject(IGetRepoMirrorLogsService)
+    private readonly service: IGetRepoMirrorLogsService,
+    @Inject(ICliOutputService) private readonly output: ICliOutputService
   ) {}
 
   register(cli: CliInstance): void {
@@ -23,12 +24,21 @@ export class GetRepoMirrorLogsCommand implements IRepoMirrorSubcommand {
         description: 'Read recent structured mirror run logs.',
         options: z.object({
           follow: z.boolean().default(false).describe('Follow new log events'),
-          lines: z.number().int().min(1).max(10_000).default(100).describe('Maximum log lines'),
+          lines: z
+            .number()
+            .int()
+            .min(1)
+            .max(10_000)
+            .default(100)
+            .describe('Maximum log lines'),
         }),
-        run: (rawContext) => {
+        run: async (rawContext) => {
           const context = rawContext as CliContext & {
             readonly args: { readonly name: string }
-            readonly options: { readonly follow: boolean; readonly lines: number }
+            readonly options: {
+              readonly follow: boolean
+              readonly lines: number
+            }
           }
           if (context.options.follow) {
             return this.#follow(context.args.name, context.options.lines)
@@ -37,20 +47,26 @@ export class GetRepoMirrorLogsCommand implements IRepoMirrorSubcommand {
             context,
             'repo-mirrors logs',
             async () =>
-              this.service.execute({ name: context.args.name, lines: context.options.lines }),
-            (lines) => (lines.length === 0 ? 'No mirror logs found.' : lines.join('\n')),
+              this.service.execute({
+                lines: context.options.lines,
+                name: context.args.name,
+              }),
+            (lines) =>
+              lines.length === 0 ? 'No mirror logs found.' : lines.join('\n')
           )
         },
-      }),
+      })
     )
   }
 
   async *#follow(name: string, lines: number): AsyncGenerator<string, void> {
     const controller = new AbortController()
-    const interrupt = (): void => controller.abort()
+    const interrupt = (): void => {
+      controller.abort()
+    }
     process.once('SIGINT', interrupt)
     try {
-      yield* this.service.follow({ name, lines, signal: controller.signal })
+      yield* this.service.follow({ lines, name, signal: controller.signal })
     } finally {
       process.removeListener('SIGINT', interrupt)
     }

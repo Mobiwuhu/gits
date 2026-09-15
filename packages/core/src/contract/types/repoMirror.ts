@@ -164,10 +164,12 @@ export type RepoMirrorLockRelease = () => Promise<void>
 
 export interface RepoMirrorLogSession {
   readonly startedAt: string
-  event(command: Readonly<{ durationMs: number; exitCode: number | null }>): void
+  event(
+    command: Readonly<{ durationMs: number; exitCode: number | null }>
+  ): void
   finish(
     status: RepoMirrorLastRunStatus,
-    options?: Readonly<{ error?: string }>,
+    options?: Readonly<{ error?: string }>
   ): Promise<RepoMirrorRunState>
 }
 

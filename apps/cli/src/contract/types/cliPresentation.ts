@@ -1,4 +1,8 @@
-import type { CommandOutput, GitsUninstallOutput, RepoMirrorCommandOutput } from '@gits/core'
+import type {
+  CommandOutput,
+  GitsUninstallOutput,
+  RepoMirrorCommandOutput,
+} from '@gits/core'
 
 import type { SuggestedCommand } from './cliContext'
 
