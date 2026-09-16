@@ -73,8 +73,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build and run the CLI
-        run: |
-          pnpm build
-          node apps/cli/dist/index.js --version
-          node apps/cli/dist/index.js --help
+      - name: Build, pack, and run the published CLI
+        run: pnpm pack:check

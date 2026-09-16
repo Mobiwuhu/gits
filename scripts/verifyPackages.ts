@@ -148,6 +148,7 @@ try {
     consumerDirectory
   )
   assertEqual(cliVersion.trim(), rootPackage.version, 'installed CLI version')
+  await run('pnpm', ['exec', 'gits', '--help'], consumerDirectory)
   await run(
     'node',
     [
