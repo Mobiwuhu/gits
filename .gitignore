@@ -6,6 +6,9 @@ dist/
 coverage/
 *.tsbuildinfo
 
+# Local documentation
+docs/
+
 # Environment files
 .env
 .env.*

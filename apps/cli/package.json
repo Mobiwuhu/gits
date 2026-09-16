@@ -9,20 +9,22 @@
     "workspace"
   ],
   "bin": {
-    "gits": "./dist/index.js"
+    "gits": "./dev.mjs"
   },
   "files": [
     "dist"
   ],
   "type": "module",
   "publishConfig": {
+    "bin": {
+      "gits": "./dist/index.js"
+    },
     "access": "public"
   },
   "scripts": {
     "build": "tsdown --config-loader tsx",
     "build:watch": "tsdown --config-loader tsx --watch",
-    "dev": "TSX_TSCONFIG_PATH=tsconfig.json node --import=tsx src/index.ts",
-    "start": "node dist/index.js",
+    "dev": "TSX_TSCONFIG_PATH=../../tsconfig.base.json node --import=tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -31,6 +33,9 @@
     "incur": "catalog:",
     "listr2": "catalog:",
     "table": "catalog:"
+  },
+  "devDependencies": {
+    "tsx": "catalog:"
   },
   "engines": {
     "node": ">=22.17.1"

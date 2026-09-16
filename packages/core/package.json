@@ -7,12 +7,15 @@
     "monorepo",
     "workspace"
   ],
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "exports": "./src/index.ts",
   "publishConfig": {
-    "access": "public",
-    "directory": "dist",
-    "linkDirectory": true
+    "types": "./dist/index.d.ts",
+    "exports": "./dist/index.js",
+    "access": "public"
   },
   "scripts": {
     "build": "tsdown --config-loader tsx",

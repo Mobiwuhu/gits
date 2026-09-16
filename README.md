@@ -41,7 +41,7 @@ pnpm build
 pnpm start -- --help
 ```
 
-`pnpm build` 使用 tsdown/Rolldown 将 Core 和 CLI 构建为 Node.js ESM；`tsc` 只负责 `--noEmit` 类型检查，不参与生成运行产物。
+`pnpm build` 使用 tsdown/Rolldown 将 Core 和 CLI 构建为 Node.js ESM；`tsc` 只负责 `--noEmit` 类型检查，不参与生成运行产物。仓库内运行 CLI 时由 `tsx` 直接加载 TypeScript 源码，因此日常开发不要求先构建。
 
 提交前可运行与 CI 相同的完整检查：
 
@@ -49,17 +49,17 @@ pnpm start -- --help
 pnpm check
 ```
 
-Ultracite 同时驱动 Oxlint 和 Oxfmt，Oxlint 已开启 TypeScript 类型感知。Lefthook 会在 `pre-commit` 执行同一套 lint，并在 `commit-msg` 使用 Commitlint 校验 Conventional Commits。依赖安装时会自动注册这些 Git hooks。
+代码质量工具直接使用 Oxlint 和 Oxfmt 的原生配置。Oxlint 只启用核心的 correctness、suspicious、perf 分类及少量项目规则；Oxfmt 保持单引号、无分号风格。Lefthook 会在 `pre-commit` 执行两项检查，并在 `commit-msg` 使用 Commitlint 校验 Conventional Commits。依赖安装时会自动注册这些 Git hooks。
 
 发布由 Relizy 的 unified 模式管理，根包、`@gits/cli` 和 `@gits/core` 会一起升级到同一版本。维护者流程与 npm/GitHub 的一次性配置见 [`docs/releasing.md`](docs/releasing.md)。
 
-完成首次构建后，可以直接运行 CLI 的 TypeScript 源码：
+可以直接运行 CLI 的 TypeScript 源码：
 
 ```sh
 pnpm dev -- --help
 ```
 
-Core 的 workspace 链接指向构建目录。持续修改 Core 或希望全局链接实时跟随构建结果时，另开一个终端运行：
+需要持续检查构建产物时，可以另开一个终端运行：
 
 ```sh
 pnpm build:watch
@@ -76,7 +76,7 @@ pnpm link:global
 gits --help
 ```
 
-`link:global` 会先构建整个 workspace，再把 `apps/cli` 注册为全局 `gits` 命令。Core 通过 `publishConfig.directory` 和 `linkDirectory` 链接到 `packages/core/dist`，所以全局命令直接使用编译后的 JavaScript，不需要全局安装 `tsx`、设置 `NODE_OPTIONS` 或维护 shell function。
+`link:global` 会把开发态 CLI 注册为全局 `gits` 命令。该入口使用仓库已经安装的 `tsx` 加载 CLI 与 Core 源码，修改后无需重新构建，也不需要全局安装 `tsx`。正式 tarball 中的命令入口仍由 `publishConfig` 改写为 `dist/index.js`，使用原生 Node.js 运行。
 
 ## 快速试用
 
@@ -349,7 +349,7 @@ packages/core/src/
 
 TypeScript 使用 Bundler 模块解析，源码相对导入不写文件扩展名，例如 `import './Foo'`。tsdown 会解析 `.ts` 模块并生成可由 Node.js 直接执行的 ESM，因此源码中不需要伪写 `.js` 后缀，仓库也不包含手写 JavaScript 源文件。
 
-Core 包采用 pnpm 的 `publishConfig.directory` 方式，不使用自定义 condition 或 `--conditions`。顶层 `exports` 仍指向 `src/index.ts`，供源码工具识别；tsdown 会在 `dist` 中生成单文件 ESM、声明文件和生产清单，入口指向 `index.js` 和 `index.d.ts`。`linkDirectory: true` 使 workspace 和全局 CLI 都通过构建后的 Core 运行，`pnpm pack/publish` 也只会处理 `dist` 中的生产文件。
+Core 包采用 pnpm 的 `publishConfig` 清单改写方案，不使用自定义 condition 或 `--conditions`。开发清单的 `exports` 指向 `src/index.ts`，让 TypeScript 与 `tsx` 同时读取实时源码；执行 `pnpm pack/publish` 时，pnpm 会把 `exports` 和 `types` 改写为 `dist/index.js` 与 `dist/index.d.ts`。`files` 只收录 `dist`，因此 tarball 从包根目录生成，并包含根 `package.json` 和构建产物，不需要 `dist/package.json`。该方案依赖 pnpm 的扩展行为，不能改用 `npm publish`。
 
 ## 校验
 

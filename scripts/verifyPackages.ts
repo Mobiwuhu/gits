@@ -18,12 +18,17 @@ const repositoryRoot = resolve(import.meta.dirname, '..')
 interface PackageManifest {
   readonly bin?: Readonly<Record<string, string>>
   readonly dependencies?: Readonly<Record<string, string>>
+  readonly exports?: string
   readonly files?: readonly string[]
   readonly name: string
   readonly private?: boolean
   readonly publishConfig?: {
     readonly access?: string
+    readonly bin?: Readonly<Record<string, string>>
+    readonly exports?: string
+    readonly types?: string
   }
+  readonly types?: string
   readonly version: string
 }
 
@@ -46,6 +51,23 @@ assertEqual(corePackage.version, rootPackage.version, 'Core and root versions')
 assertPublishable(cliPackage)
 assertPublishable(corePackage)
 assertEqual(cliPackage.files?.join(','), 'dist', 'CLI published files')
+assertEqual(cliPackage.bin?.gits, './dev.mjs', 'CLI development binary')
+assertEqual(
+  cliPackage.publishConfig?.bin?.gits,
+  './dist/index.js',
+  'CLI published binary'
+)
+assertEqual(corePackage.exports, './src/index.ts', 'Core development export')
+assertEqual(
+  corePackage.publishConfig?.exports,
+  './dist/index.js',
+  'Core published export'
+)
+assertEqual(
+  corePackage.publishConfig?.types,
+  './dist/index.d.ts',
+  'Core published declarations'
+)
 
 const temporaryDirectory = await mkdtemp(
   resolve(tmpdir(), 'gits-package-audit-')
@@ -67,20 +89,23 @@ try {
     'packed CLI dependency on Core'
   )
   assertEqual(packedCli.bin?.gits, './dist/index.js', 'packed CLI binary')
+  assertEqual(packedCore.exports, './dist/index.js', 'packed Core export')
+  assertEqual(packedCore.types, './dist/index.d.ts', 'packed Core declarations')
   assertPublishable(packedCli)
   assertPublishable(packedCore)
 
   const cliFiles = await archiveFiles(cliArchive)
   const coreFiles = await archiveFiles(coreArchive)
   assertIncludes(cliFiles, 'package/dist/index.js', 'CLI runtime')
-  assertIncludes(coreFiles, 'package/index.js', 'Core runtime')
-  assertIncludes(coreFiles, 'package/index.d.ts', 'Core declarations')
+  assertIncludes(coreFiles, 'package/dist/index.js', 'Core runtime')
+  assertIncludes(coreFiles, 'package/dist/index.d.ts', 'Core declarations')
   assertIncludes(
     coreFiles,
-    'package/templates/taskScaffold.md',
+    'package/dist/templates/taskScaffold.md',
     'Core templates'
   )
   assertNoMatch(cliFiles, /(?:^|\/)src\//u, 'CLI source files')
+  assertNoMatch(coreFiles, /(?:^|\/)src\//u, 'Core source files')
   assertNoMatch(cliFiles, /\.test\.[cm]?[jt]sx?$/u, 'CLI test files')
 
   const consumerDirectory = resolve(temporaryDirectory, 'consumer')

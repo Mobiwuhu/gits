@@ -1,7 +1,9 @@
 pre-commit:
   commands:
-    ultracite:
-      run: pnpm exec ultracite check --quiet
+    oxlint:
+      run: pnpm exec oxlint . --quiet
+    oxfmt:
+      run: pnpm exec oxfmt . --check
 
 commit-msg:
   commands:
