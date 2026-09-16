@@ -1,5 +1,7 @@
 # gits
 
+[简体中文](README.md) | [English](README.en.md)
+
 `gits` 是面向一个开发任务涉及多个 Git 仓库的任务工作区 CLI。它将这些仓库组织为一个 Task Branch Set（任务分支集），统一完成准备、查看、切换、获取远程状态和安全推送。
 
 `task.config.jsonc` 只保存稳定意图：仓库身份、任务分支、首次创建分支时使用的远程基线，以及可选的工作区目录范围。当前分支、工作区改动、upstream、实际 sparse-checkout 和提交状态始终以原生 Git 为事实来源。
@@ -51,7 +53,7 @@ pnpm check
 
 代码质量工具直接使用 Oxlint 和 Oxfmt 的原生配置。Oxlint 只启用核心的 correctness、suspicious、perf 分类及少量项目规则；Oxfmt 保持单引号、无分号风格。Lefthook 会在 `pre-commit` 执行两项检查，并在 `commit-msg` 使用 Commitlint 校验 Conventional Commits。依赖安装时会自动注册这些 Git hooks。
 
-发布由 Relizy 的 unified 模式管理，根包、`@gits/cli` 和 `@gits/core` 会一起升级到同一版本。维护者流程与 npm/GitHub 的一次性配置见 [`docs/releasing.md`](docs/releasing.md)。
+发布由 Relizy 的 unified 模式管理，根包、`@gits/cli` 和 `@gits/core` 会一起升级到同一版本。维护者可用 `pnpm release:check` 预演，用 `pnpm release` 执行正式发布。
 
 可以直接运行 CLI 的 TypeScript 源码：
 
@@ -345,7 +347,7 @@ packages/core/src/
 └── index.ts         # Core 对 CLI 的公开面
 ```
 
-约束是“依赖接口、注册实现”：构造器只注入 `I...Service` Identifier，具体实现只在 `dependencies.ts` 中通过 `{ useClass }` 绑定。一次 CLI 调用只创建一个 Injector。详细规则见 [`docs/class-based-di-refactoring-plan.md`](docs/class-based-di-refactoring-plan.md)。
+约束是“依赖接口、注册实现”：构造器只注入 `I...Service` Identifier，具体实现只在 `dependencies.ts` 中通过 `{ useClass }` 绑定。一次 CLI 调用只创建一个 Injector。
 
 TypeScript 使用 Bundler 模块解析，源码相对导入不写文件扩展名，例如 `import './Foo'`。tsdown 会解析 `.ts` 模块并生成可由 Node.js 直接执行的 ESM，因此源码中不需要伪写 `.js` 后缀，仓库也不包含手写 JavaScript 源文件。
 
