@@ -1,6 +1,7 @@
 import { Many } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 
+import cliPackage from '../../package.json' with { type: 'json' }
 import { ICliCommand } from '../contract/index'
 import type { ICliApplication } from '../contract/index'
 
@@ -18,7 +19,7 @@ export class CliApplication implements ICliApplication {
           .describe('Run as if started in this directory'),
       }),
       update: false,
-      version: '0.1.0',
+      version: cliPackage.version,
     })
     for (const command of this.commands) {
       command.register(cli)
