@@ -112,7 +112,7 @@ importers:
         version: 7.0.2
 
   apps/cli:
-    dependencies:
+    devDependencies:
       '@gits/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -128,7 +128,6 @@ importers:
       table:
         specifier: 'catalog:'
         version: 6.9.0
-    devDependencies:
       tsx:
         specifier: 'catalog:'
         version: 4.23.13

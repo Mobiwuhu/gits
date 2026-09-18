@@ -76,7 +76,7 @@ pnpm publish:npm:check       # 使用示例配置预演公共 npm
 pnpm publish:npm             # 使用本地配置发布公共 npm
 ```
 
-渠道发布脚本会先生成临时 tarball。CLI 仍然引用 `@gits/core`，发布清单通过 npm alias 映射到真实 Core 包，例如 `npm:@your-scope/gits-core@<version>`。临时目录结束后自动清理，不会修改源码包清单。
+渠道发布脚本会先生成临时 tarball。CLI 源码仍通过 `@gits/core` 维护模块边界；正式 CLI 会将 Core 与运行依赖打成一个自包含文件，因此安装 CLI 不需要额外解析 Core 或公共运行依赖。Core 仍作为独立包发布，供其他程序直接复用。临时目录结束后自动清理，不会修改源码包清单。
 
 可以直接运行 CLI 的 TypeScript 源码：
 

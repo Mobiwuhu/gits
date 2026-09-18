@@ -11,6 +11,7 @@ export {
   gitsManagedArtifactKeys,
   gitsManagedArtifactRegistry,
   gitsPersistenceRootRegistry,
+  gitsSchedulerWorkerEnvironmentVariable,
   registeredTopLevelNames,
   resolveLaunchdProjectionDirectory,
   resolveRegisteredGitsHomePath,

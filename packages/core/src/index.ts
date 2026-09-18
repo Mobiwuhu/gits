@@ -1,3 +1,6 @@
 export * from './contract/index'
 export { coreDependencies } from './dependencies'
-export { gitsManagedArtifactRegistry } from './service/index'
+export {
+  gitsManagedArtifactRegistry,
+  gitsSchedulerWorkerEnvironmentVariable,
+} from './service/index'

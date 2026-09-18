@@ -76,7 +76,7 @@ pnpm publish:npm:check       # preview public npm with example configuration
 pnpm publish:npm             # publish public npm with local configuration
 ```
 
-The channel publisher creates temporary tarballs. The CLI keeps importing `@gits/core`, while the release manifest aliases that dependency to the real Core package, for example `npm:@your-scope/gits-core@<version>`. Temporary files are removed afterward, and source manifests remain unchanged.
+The channel publisher creates temporary tarballs. The CLI source keeps the `@gits/core` module boundary, while the released CLI bundles Core and all runtime dependencies into one self-contained file. Installing the CLI therefore does not need to resolve Core or public runtime dependencies. Core is still published separately for direct reuse. Temporary files are removed afterward, and source manifests remain unchanged.
 
 Run the CLI directly from TypeScript source:
 

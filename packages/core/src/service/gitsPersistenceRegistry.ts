@@ -166,12 +166,14 @@ export interface GitsManagedArtifactRegistry {
   }
 }
 
+export const gitsSchedulerWorkerEnvironmentVariable = 'GITS_SCHEDULER_WORKER'
+
 export const gitsManagedArtifactRegistry: GitsManagedArtifactRegistry = {
   schedulerWorker: {
     bundleMarker: 'gits-repo-mirror-worker-bundle:v1',
     description: 'Dependency-bundled native scheduler worker',
     fileName: 'gits-repo-mirror-worker.mjs',
-    packagedFileName: 'repo-mirror-worker.mjs',
+    packagedFileName: 'index.js',
     parent: 'bin',
   },
   stableSchedulerRunner: {

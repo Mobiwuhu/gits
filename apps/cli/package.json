@@ -22,19 +22,17 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown --config-loader tsx && tsdown --config tsdown.repo-mirror-worker.config.ts --config-loader tsx",
+    "build": "tsdown --config-loader tsx",
     "build:watch": "tsdown --config-loader tsx --watch",
     "dev": "TSX_TSCONFIG_PATH=../../tsconfig.base.json node --import=tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "dependencies": {
+  "devDependencies": {
     "@gits/core": "workspace:*",
     "@wendellhu/redi": "catalog:",
     "incur": "catalog:",
     "listr2": "catalog:",
-    "table": "catalog:"
-  },
-  "devDependencies": {
+    "table": "catalog:",
     "tsx": "catalog:"
   },
   "engines": {

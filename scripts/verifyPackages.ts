@@ -85,9 +85,9 @@ try {
   assertEqual(packedCli.version, rootPackage.version, 'packed CLI version')
   assertEqual(packedCore.version, rootPackage.version, 'packed Core version')
   assertEqual(
-    packedCli.dependencies?.['@gits/core'],
-    rootPackage.version,
-    'packed CLI dependency on Core'
+    Object.keys(packedCli.dependencies ?? {}).length,
+    0,
+    'packed CLI runtime dependency count'
   )
   assertEqual(packedCli.bin?.gits, './dist/index.js', 'packed CLI binary')
   assertEqual(packedCore.exports, './dist/index.js', 'packed Core export')
@@ -98,11 +98,6 @@ try {
   const cliFiles = await archiveFiles(cliArchive)
   const coreFiles = await archiveFiles(coreArchive)
   assertIncludes(cliFiles, 'package/dist/index.js', 'CLI runtime')
-  assertIncludes(
-    cliFiles,
-    'package/dist/repo-mirror-worker.mjs',
-    'dependency-bundled scheduler worker'
-  )
   assertIncludes(coreFiles, 'package/dist/index.js', 'Core runtime')
   assertIncludes(coreFiles, 'package/dist/index.d.ts', 'Core declarations')
   assertIncludes(
@@ -124,11 +119,6 @@ try {
           '@gits/core': `file:${coreArchive}`,
         },
         name: 'gits-package-consumer',
-        pnpm: {
-          overrides: {
-            '@gits/core': `file:${coreArchive}`,
-          },
-        },
         private: true,
         type: 'module',
         version: '0.0.0',
@@ -155,20 +145,26 @@ try {
   )
   assertEqual(cliVersion.trim(), rootPackage.version, 'installed CLI version')
   await run('pnpm', ['exec', 'gits', '--help'], consumerDirectory)
+  const initializedTask = resolve(temporaryDirectory, 'initialized-task')
+  await mkdir(initializedTask)
+  await run(
+    'pnpm',
+    ['exec', 'gits', '-C', initializedTask, 'init', '--json'],
+    consumerDirectory
+  )
+  await readFile(resolve(initializedTask, 'task.config.jsonc'), 'utf-8')
   const standaloneDirectory = resolve(temporaryDirectory, 'standalone-worker')
   const standaloneWorker = resolve(
     standaloneDirectory,
     'repo-mirror-worker.mjs'
   )
   await mkdir(standaloneDirectory)
-  await copyFile(
-    resolve(cliDirectory, 'dist/repo-mirror-worker.mjs'),
-    standaloneWorker
-  )
+  await copyFile(resolve(cliDirectory, 'dist/index.js'), standaloneWorker)
   const workerVersion = await run(
     process.execPath,
     [standaloneWorker, '--version'],
-    standaloneDirectory
+    standaloneDirectory,
+    { GITS_SCHEDULER_WORKER: '1' }
   )
   assertEqual(
     workerVersion.trim(),

@@ -77,7 +77,6 @@ try {
     version: rootPackage.version,
   })
   const cliArchive = await createChannelArchive({
-    corePackageName: configuration.corePackageName,
     destination: channelArchivesDirectory,
     name: configuration.cliPackageName,
     sourceArchive: sourceCliArchive,
@@ -123,7 +122,7 @@ try {
     )
   } else {
     for (const target of pendingTargets) {
-      // Publish Core before the CLI that depends on it.
+      // Keep the two channel packages in a deterministic order.
       // eslint-disable-next-line no-await-in-loop
       await publish(target.archive, configuration.registry, options.tag, false)
     }
@@ -218,7 +217,6 @@ function isChannelConfiguration(value: unknown): value is ChannelConfiguration {
 }
 
 async function createChannelArchive(options_: {
-  readonly corePackageName?: string
   readonly destination: string
   readonly name: string
   readonly sourceArchive: string
@@ -239,14 +237,6 @@ async function createChannelArchive(options_: {
   assertEqual(manifest.version, options_.version, `${manifest.name} version`)
   manifest.name = options_.name
 
-  if (options_.corePackageName !== undefined) {
-    if (manifest.dependencies?.['@gits/core'] === undefined) {
-      throw new Error(`${manifest.name} does not depend on @gits/core`)
-    }
-    manifest.dependencies['@gits/core'] =
-      `npm:${options_.corePackageName}@${options_.version}`
-  }
-
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
   const archive = await pack(packageDirectory, options_.destination)
   const packedManifest = await readArchiveManifest(archive)
@@ -256,14 +246,6 @@ async function createChannelArchive(options_: {
     options_.version,
     'channel package version'
   )
-
-  if (options_.corePackageName !== undefined) {
-    assertEqual(
-      packedManifest.dependencies?.['@gits/core'],
-      `npm:${options_.corePackageName}@${options_.version}`,
-      'channel Core alias'
-    )
-  }
 
   return archive
 }

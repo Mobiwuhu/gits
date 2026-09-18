@@ -21,6 +21,7 @@ import type { IProcessService, ProcessResult } from '../../../contract/index'
 import {
   FileSystemService,
   gitsManagedArtifactRegistry,
+  gitsSchedulerWorkerEnvironmentVariable,
   GitsPathService,
 } from '../../../service/index'
 import { compileCalendarEntries } from './portableCron'
@@ -224,7 +225,14 @@ void describe('native repo mirror scheduler', () => {
       const workerSource = resolve(root, 'probe.mjs')
       await fileSystem.writeFileAtomically(
         workerSource,
-        `${workerBundleMarker()}\nprocess.stdout.write(JSON.stringify(process.argv.slice(2)))\n`
+        [
+          workerBundleMarker(),
+          'process.stdout.write(JSON.stringify({',
+          '  arguments: process.argv.slice(2),',
+          `  schedulerWorker: process.env[${JSON.stringify(gitsSchedulerWorkerEnvironmentVariable)}],`,
+          '}))',
+          '',
+        ].join('\n')
       )
       const installer = new StableRunnerInstaller(
         paths,
@@ -242,7 +250,10 @@ void describe('native repo mirror scheduler', () => {
           PATH: installer.invocation('probe').environment.PATH,
         },
       })
-      assert.deepEqual(JSON.parse(result.stdout), ['one', 'two'])
+      assert.deepEqual(JSON.parse(result.stdout), {
+        arguments: ['one', 'two'],
+        schedulerWorker: '1',
+      })
 
       const replacementSource = resolve(root, 'replacement.mjs')
       await fileSystem.writeFileAtomically(

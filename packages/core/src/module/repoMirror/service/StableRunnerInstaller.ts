@@ -15,7 +15,10 @@ import type {
   RepoMirrorScheduledInvocation,
   StableRunnerObservation,
 } from '../../../contract/index'
-import { gitsManagedArtifactRegistry } from '../../../service/index'
+import {
+  gitsManagedArtifactRegistry,
+  gitsSchedulerWorkerEnvironmentVariable,
+} from '../../../service/index'
 
 export const nativeRepoMirrorLogMaximumBytes: number = 1024 * 1024
 export const nativeRepoMirrorLogMaximumBackups = 2
@@ -230,6 +233,9 @@ export class StableRunnerInstaller implements IStableRunnerInstaller {
 
 function runnerSource(executable: string, workerPath: string): string {
   const prefix = JSON.stringify([workerPath])
+  const workerEnvironment = JSON.stringify(
+    gitsSchedulerWorkerEnvironmentVariable
+  )
   return [
     '#!/usr/bin/env node',
     "'use strict'",
@@ -311,7 +317,8 @@ function runnerSource(executable: string, workerPath: string): string {
     'try {',
     '  const nativeLogPath = process.env.GITS_NATIVE_LOG',
     '  const sink = nativeLogPath ? openLogSink(nativeLogPath) : null',
-    `  const child = spawn(${JSON.stringify(executable)}, ${prefix}.concat(process.argv.slice(2)), { env: process.env, stdio: sink ? ['ignore', 'ignore', 'pipe'] : 'inherit' })`,
+    `  const childEnvironment = { ...process.env, [${workerEnvironment}]: '1' }`,
+    `  const child = spawn(${JSON.stringify(executable)}, ${prefix}.concat(process.argv.slice(2)), { env: childEnvironment, stdio: sink ? ['ignore', 'ignore', 'pipe'] : 'inherit' })`,
     "  if (sink && child.stderr) child.stderr.on('data', (chunk) => sink.write(chunk))",
     "  for (const signal of ['SIGHUP', 'SIGINT', 'SIGTERM']) {",
     '    process.once(signal, () => {',
