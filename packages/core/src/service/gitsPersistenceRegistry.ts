@@ -152,6 +152,13 @@ export const gitsExternalPersistenceRegistry: GitsExternalPersistenceRegistry =
   }
 
 export interface GitsManagedArtifactRegistry {
+  readonly schedulerWorker: {
+    readonly bundleMarker: string
+    readonly description: string
+    readonly fileName: string
+    readonly packagedFileName: string
+    readonly parent: GitsHomePersistenceKey
+  }
   readonly stableSchedulerRunner: {
     readonly description: string
     readonly fileName: string
@@ -160,12 +167,26 @@ export interface GitsManagedArtifactRegistry {
 }
 
 export const gitsManagedArtifactRegistry: GitsManagedArtifactRegistry = {
+  schedulerWorker: {
+    bundleMarker: 'gits-repo-mirror-worker-bundle:v1',
+    description: 'Dependency-bundled native scheduler worker',
+    fileName: 'gits-repo-mirror-worker.mjs',
+    packagedFileName: 'repo-mirror-worker.mjs',
+    parent: 'bin',
+  },
   stableSchedulerRunner: {
     description: 'Stable native scheduler runner',
-    fileName: 'gits-repo-mirror-runner',
+    fileName: 'gits-repo-mirror-runner.cjs',
     parent: 'bin',
   },
 }
+
+export type GitsManagedArtifactKey = keyof GitsManagedArtifactRegistry
+
+export const gitsManagedArtifactKeys: readonly GitsManagedArtifactKey[] = [
+  'schedulerWorker',
+  'stableSchedulerRunner',
+]
 
 export function resolveRegisteredGitsHomePath(
   home: string,

@@ -6,6 +6,7 @@ import {
   readFile,
   readdir,
   rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -97,6 +98,11 @@ try {
   const cliFiles = await archiveFiles(cliArchive)
   const coreFiles = await archiveFiles(coreArchive)
   assertIncludes(cliFiles, 'package/dist/index.js', 'CLI runtime')
+  assertIncludes(
+    cliFiles,
+    'package/dist/repo-mirror-worker.mjs',
+    'dependency-bundled scheduler worker'
+  )
   assertIncludes(coreFiles, 'package/dist/index.js', 'Core runtime')
   assertIncludes(coreFiles, 'package/dist/index.d.ts', 'Core declarations')
   assertIncludes(
@@ -149,6 +155,102 @@ try {
   )
   assertEqual(cliVersion.trim(), rootPackage.version, 'installed CLI version')
   await run('pnpm', ['exec', 'gits', '--help'], consumerDirectory)
+  const standaloneDirectory = resolve(temporaryDirectory, 'standalone-worker')
+  const standaloneWorker = resolve(
+    standaloneDirectory,
+    'repo-mirror-worker.mjs'
+  )
+  await mkdir(standaloneDirectory)
+  await copyFile(
+    resolve(cliDirectory, 'dist/repo-mirror-worker.mjs'),
+    standaloneWorker
+  )
+  const workerVersion = await run(
+    process.execPath,
+    [standaloneWorker, '--version'],
+    standaloneDirectory
+  )
+  assertEqual(
+    workerVersion.trim(),
+    rootPackage.version,
+    'standalone scheduler worker version'
+  )
+  const lifecycleHome = resolve(temporaryDirectory, 'lifecycle-home')
+  const lifecycleBin = resolve(lifecycleHome, 'bin')
+  const lifecycleRunner = resolve(lifecycleBin, 'gits-repo-mirror-runner.cjs')
+  const lifecycleWorker = resolve(lifecycleBin, 'gits-repo-mirror-worker.mjs')
+  const globalBin = resolve(temporaryDirectory, 'global-bin')
+  const globalCommand = resolve(globalBin, 'gits')
+  await mkdir(lifecycleBin, { recursive: true })
+  await mkdir(globalBin)
+  await writeFile(lifecycleRunner, '#!/bin/sh\nexit 1\n', { mode: 0o700 })
+  await symlink(
+    resolve(consumerDirectory, 'node_modules/@gits/cli/dist/index.js'),
+    globalCommand
+  )
+  const refreshedVersion = await run(
+    globalCommand,
+    ['--version'],
+    consumerDirectory,
+    { GITS_HOME: lifecycleHome }
+  )
+  assertEqual(
+    refreshedVersion.trim(),
+    rootPackage.version,
+    'CLI version through an npm-style global symlink'
+  )
+  const runnerVersion = await run(
+    lifecycleRunner,
+    ['--version'],
+    temporaryDirectory,
+    { GITS_HOME: lifecycleHome }
+  )
+  assertEqual(
+    runnerVersion.trim(),
+    rootPackage.version,
+    'refreshed stable scheduler runner version'
+  )
+  const lifecycleRunnerContent = await readFile(lifecycleRunner, 'utf-8')
+  if (lifecycleRunnerContent.includes(consumerDirectory)) {
+    throw new Error('stable scheduler runner references the package install')
+  }
+
+  await rm(resolve(consumerDirectory, 'node_modules'), {
+    force: true,
+    recursive: true,
+  })
+  const uninstalledVersion = await run(
+    lifecycleRunner,
+    ['--version'],
+    temporaryDirectory,
+    { GITS_HOME: lifecycleHome }
+  )
+  assertEqual(
+    uninstalledVersion.trim(),
+    rootPackage.version,
+    'scheduler runner after package removal'
+  )
+
+  await run(
+    'pnpm',
+    ['install', '--ignore-scripts', '--no-frozen-lockfile'],
+    consumerDirectory
+  )
+  await writeFile(lifecycleWorker, 'damaged worker\n')
+  await run(globalCommand, ['--version'], consumerDirectory, {
+    GITS_HOME: lifecycleHome,
+  })
+  const reinstalledVersion = await run(
+    lifecycleRunner,
+    ['--version'],
+    temporaryDirectory,
+    { GITS_HOME: lifecycleHome }
+  )
+  assertEqual(
+    reinstalledVersion.trim(),
+    rootPackage.version,
+    'scheduler runner repaired after package reinstall'
+  )
   await run(
     'node',
     [
@@ -249,11 +351,13 @@ async function readJson<T>(path: string): Promise<T> {
 async function run(
   command: string,
   arguments_: readonly string[],
-  cwd: string
+  cwd: string,
+  environment: NodeJS.ProcessEnv = {}
 ): Promise<string> {
   const { stdout } = await execFileAsync(command, arguments_, {
     cwd,
     encoding: 'utf-8',
+    env: { ...process.env, ...environment },
     maxBuffer: 10 * 1024 * 1024,
   })
   return stdout

@@ -6,19 +6,29 @@
 
 `task.config.jsonc` 只保存稳定意图：仓库身份、任务分支、首次创建分支时使用的远程基线，以及可选的工作区目录范围。当前分支、工作区改动、upstream、实际 sparse-checkout 和提交状态始终以原生 Git 为事实来源。
 
-仓库采用 `packages/core` + `apps/cli` 的模块化单体结构。Core 保存业务 Service，CLI 只负责 Incur 参数、交互和输出；全部 Command 通过 ReDI 构造器注入并显式注册，不扫描文件路由。两个 workspace 分别以 `@gits/core` 和 `@gits/cli` 公开发布，并始终使用相同版本号；安装 CLI 后的命令名仍是 `gits`。
+仓库采用 `packages/core` + `apps/cli` 的模块化单体结构。Core 保存业务 Service，CLI 只负责 Incur 参数、交互和输出；全部 Command 通过 ReDI 构造器注入并显式注册，不扫描文件路由。源码使用稳定的逻辑包名 `@gits/core` 和 `@gits/cli`，发布时再映射到对应渠道的真实包名；安装 CLI 后的命令名仍是 `gits`。
 
 ## 安装
 
+将 `your-scope` 替换为所选发布渠道的 scope：
+
 ```sh
-pnpm add --global @gits/cli
+npm install --global @your-scope/gits
 gits --help
+```
+
+使用私有 registry 时，可以按 scope 分流依赖。将示例地址替换为实际 registry：
+
+```sh
+npm install --global @your-scope/gits \
+  --registry=https://registry.npmjs.org/ \
+  --@your-scope:registry=https://registry.example.com/
 ```
 
 如果只需要复用底层 Service 和 Contract：
 
 ```sh
-pnpm add @gits/core
+npm install @your-scope/gits-core
 ```
 
 ## 环境要求
@@ -53,7 +63,20 @@ pnpm check
 
 代码质量工具直接使用 Oxlint 和 Oxfmt 的原生配置。Oxlint 只启用核心的 correctness、suspicious、perf 分类及少量项目规则；Oxfmt 保持单引号、无分号风格。Lefthook 会在 `pre-commit` 执行两项检查，并在 `commit-msg` 使用 Commitlint 校验 Conventional Commits。依赖安装时会自动注册这些 Git hooks。
 
-发布由 Relizy 的 unified 模式管理，根包、`@gits/cli` 和 `@gits/core` 会一起升级到同一版本。维护者可用 `pnpm release:check` 预演，用 `pnpm release` 执行正式发布。
+Relizy 只负责 unified 版本、Changelog、Git 标签与 GitHub Release，根包、CLI 和 Core 会一起升级到同一版本。渠道发布单独执行。
+
+复制 `.publish.example.json` 为 `.publish.local.json`，填写各渠道的包名和 registry。本地配置被 Git 忽略，不会进入发布包。
+
+```sh
+pnpm release:check           # 预演版本发布
+pnpm release --patch         # 生成版本，不上传 npm 包
+pnpm publish:internal:check  # 使用示例配置预演私有渠道
+pnpm publish:internal        # 使用本地配置发布私有渠道
+pnpm publish:npm:check       # 使用示例配置预演公共 npm
+pnpm publish:npm             # 使用本地配置发布公共 npm
+```
+
+渠道发布脚本会先生成临时 tarball。CLI 仍然引用 `@gits/core`，发布清单通过 npm alias 映射到真实 Core 包，例如 `npm:@your-scope/gits-core@<version>`。临时目录结束后自动清理，不会修改源码包清单。
 
 可以直接运行 CLI 的 TypeScript 源码：
 
@@ -140,7 +163,7 @@ pnpm start -- -C /tmp/gits-demo status
 ```sh
 mkdir -p /tmp/gits-demo-copy
 pnpm start -- -C /tmp/gits-demo-copy init \
-  --scan /Users/bytedance/Desktop/tasks/task-save-btn-state
+  --scan ~/tasks/task-example
 ```
 
 `--scan` 会原样递归复制源任务目录中的所有文件和目录，但完全跳过源 `repos/`；仓库工作区由目标任务根据导入的 `task.config.jsonc` 自行安装。它不会递归寻找其他任务配置、访问远程或修改源目录。
@@ -152,8 +175,8 @@ pnpm start -- -C /tmp/gits-demo-copy init \
 ```jsonc
 {
   "repos": {
-    "meego-aio": {
-      "url": "git@code.byted.org:dc/meego-aio.git",
+    "backend-aio": {
+      "url": "git@github.com:example/application.git",
       "branch": "feat/my-task",
       "from": "origin/main",
       "checkout": ["knowledge"],
@@ -165,8 +188,8 @@ pnpm start -- -C /tmp/gits-demo-copy init \
 `checkout: null` 表示完整检出；改为数组时必须是非空的仓库相对目录列表。旧配置为保持兼容仍可省略该字段，但 `gits init` 不再依赖这种隐式写法。v1 使用 Git cone-mode sparse-checkout，不接受绝对路径、`..`、反斜杠、glob、单文件或 `.git` 管理路径。cone mode 会保留仓库根部的直接文件，但不会物化其他未选择的子目录。
 
 ```sh
-gits install meego-aio
-gits status meego-aio
+gits install backend-aio
+gits status backend-aio
 ```
 
 `install` 不仅安装缺失仓库，也会对齐已有且处于可安全操作状态的仓库：修改 `checkout` 后再次运行 `install` 即可。若工作区有任何未提交或未跟踪改动，CLI 会拒绝改变检出范围；`status` 会用 `checkout-different` 标记配置漂移，`switch` 在切换任务分支后会重新应用已配置的局部检出。配置的目录在目标 `HEAD` 中不存在时，安装以 `checkout-path-missing` 失败，并且不会留下新仓库。
@@ -174,8 +197,8 @@ gits status meego-aio
 局部检出与 repo mirror 是正交能力。Mirror 始终按规范化远端身份保存完整 bare repository；`checkout` 不参与 mirror key，同一远端的多个不同目录视图会复用同一个 mirror：
 
 ```sh
-gits repo-mirrors add --from-task meego-aio --yes
-gits install meego-aio
+gits repo-mirrors add --from-task backend-aio --yes
+gits install backend-aio
 ```
 
 默认的非 `dissociate` 安装继续通过 alternates 借用 mirror objects。局部检出只减少 Task 工作区物化的文件，不承诺减少完整 Mirror 的对象占用，也不会自动启用 partial clone。
@@ -254,7 +277,8 @@ gits install
 ├── state/repo-mirror-dependencies/<name>.json
 ├── logs/repo-mirrors/<name>/*.jsonl
 ├── locks/
-├── bin/gits-repo-mirror-runner
+├── bin/gits-repo-mirror-runner.cjs
+├── bin/gits-repo-mirror-worker.mjs
 ├── tmp/
 └── trash/
 ```
@@ -278,6 +302,8 @@ gits install
 镜像日志不会无限增长：每个 mirror 最多保留 20 次、10 MiB 的完成日志，全部 mirror 的完成日志合计上限为 256 MiB；异常退出留下的 active 日志会在确认 writer 不存活且超过 24 小时后清理，绝对最长保留 7 天。launchd/systemd 的 emergency log 每个文件上限 1 MiB，并只保留两个备份（每个 mirror 最多约 3 MiB）。
 
 未传 `--schedule` 的新 mirror 默认约每 6 小时稳定错峰刷新。macOS 使用用户级 LaunchAgent，Linux 使用 `systemd --user` timer；配置仍以 `~/.gits/config.jsonc` 为事实来源，系统目录中只保存可重建的调度投影。`list --wide` 会显示本机 mirror 路径、活动 URL、aliases、cron、下一次执行时间、原生 job 和实际生成的 fetch 命令。也可以直接使用：
+
+发布包会把依赖已打包的 scheduler worker 复制到 `~/.gits/bin`，原生任务不会引用 npm/pnpm 安装目录；worker 仍由 runner 校准时记录的 Node 可执行文件启动。升级或重新安装后，第一次运行新版 `gits` 会刷新已有 runner；创建或更新调度时也会重建它。只卸载 npm 包不会删除 `~/.gits`，所以 Node 可执行文件仍存在时，已安装的 worker 可以继续运行；重新安装后第一次调用会把 runner 对齐到当前版本。需要停止调度并删除机器数据时应使用 `gits uninstall`。`gits repo-mirrors doctor --fix --yes` 会先重建 runner 和 worker，再读取配置或修复 mirror，因此配置或 mirror 损坏不会阻止 runner 校准。
 
 ```sh
 gits repo-mirrors path api

@@ -12,13 +12,14 @@ export function formatRepoMirrorOutput(
       : (output.warnings?.join('\n') ?? 'Command failed.')
   }
   const summary = formatCliTable([
-    ['NAME', 'PATH', 'REPOSITORY', 'LAST FETCH', 'NEXT FETCH'],
+    ['NAME', 'PATH', 'REPOSITORY', 'SCHEDULE', 'LAST FETCH', 'NEXT FETCH'],
     ...output.mirrors.map((mirror) => [
       mirror.name,
       mirror.path,
       mirror.repositoryState,
+      mirror.scheduleState,
       formatLastRun(mirror),
-      mirror.schedule === null ? 'off' : (mirror.nextFetchAt ?? 'unavailable'),
+      formatNextFetch(mirror),
     ]),
   ])
   const details = wide
@@ -66,6 +67,13 @@ function formatDetails(mirror: RepoMirrorView): string {
 function formatLastRun(mirror: RepoMirrorView): string {
   const run = mirror.lastRun
   return run === null ? 'never' : `${run.finishedAt} · ${run.status}`
+}
+
+function formatNextFetch(mirror: RepoMirrorView): string {
+  if (mirror.schedule === null) {
+    return 'off'
+  }
+  return mirror.nextFetchAt ?? 'unavailable'
 }
 
 function formatBytes(bytes: number): string {

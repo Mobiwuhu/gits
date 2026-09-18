@@ -22,6 +22,7 @@ import {
   gitsExternalPersistenceRegistry,
   gitsHomePersistenceKeys,
   gitsHomePersistenceRegistry,
+  gitsManagedArtifactKeys,
   gitsManagedArtifactRegistry,
   gitsPersistenceRootRegistry,
   registeredTopLevelNames,
@@ -133,21 +134,23 @@ export class GitsPersistenceService implements IGitsPersistenceService {
         }
       )
     )
-    const stableRunner = gitsManagedArtifactRegistry.stableSchedulerRunner
-    const stableRunnerPath = resolve(
-      this.paths[stableRunner.parent],
-      stableRunner.fileName
-    )
-    const managedArtifacts: readonly GitsPersistenceTarget[] = [
-      {
-        description: stableRunner.description,
-        exists: await pathExists(stableRunnerPath),
-        id: 'stableSchedulerRunner',
-        kind: GitsPersistenceTargetKind.File,
-        path: stableRunnerPath,
-        scope: GitsPersistenceTargetScope.GitsHome,
-      },
-    ]
+    const managedArtifacts: readonly GitsPersistenceTarget[] =
+      await Promise.all(
+        gitsManagedArtifactKeys.map(
+          async (id): Promise<GitsPersistenceTarget> => {
+            const artifact = gitsManagedArtifactRegistry[id]
+            const path = resolve(this.paths[artifact.parent], artifact.fileName)
+            return {
+              description: artifact.description,
+              exists: await pathExists(path),
+              id,
+              kind: GitsPersistenceTargetKind.File,
+              path,
+              scope: GitsPersistenceTargetScope.GitsHome,
+            }
+          }
+        )
+      )
     const unknown = dataRootExists ? await this.unregisteredHomeEntries() : []
     return [
       {

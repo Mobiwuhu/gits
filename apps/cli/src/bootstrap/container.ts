@@ -1,8 +1,12 @@
-import { coreDependencies } from '@gits/core'
+import { coreDependencies, IRepoMirrorWorkerSource } from '@gits/core'
 import { Injector } from '@wendellhu/redi'
 
 import { cliDependencies } from '../dependencies'
 
-export function createContainer(): Injector {
-  return new Injector([...coreDependencies, ...cliDependencies])
+export function createContainer(schedulerWorkerSource: string): Injector {
+  return new Injector([
+    ...coreDependencies,
+    ...cliDependencies,
+    [IRepoMirrorWorkerSource, { useValue: schedulerWorkerSource }],
+  ])
 }

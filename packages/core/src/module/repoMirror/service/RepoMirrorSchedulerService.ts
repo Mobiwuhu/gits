@@ -239,6 +239,15 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
   ): Promise<RepoMirrorSchedulerObservation> {
     const identity = await this.identity(definition.name)
     const path = this.launchdPath(identity.label)
+    const stableRunner = await this.stableRunner.inspect()
+    if (stableRunner.state !== RepoMirrorScheduleState.Ready) {
+      return launchdObservation(
+        identity.label,
+        path,
+        stableRunner.state,
+        stableRunner.message ?? 'Stable scheduler runner is unavailable.'
+      )
+    }
     const nativeLog = resolve(this.paths.logs, `${definition.name}.native.log`)
     const expected = renderLaunchdPlist({
       calendarEntries: entries,
@@ -417,6 +426,15 @@ export class RepoMirrorSchedulerService implements IRepoMirrorSchedulerService {
   ): Promise<RepoMirrorSchedulerObservation> {
     const identity = await this.identity(definition.name)
     const paths = this.systemdPaths(identity)
+    const stableRunner = await this.stableRunner.inspect()
+    if (stableRunner.state !== RepoMirrorScheduleState.Ready) {
+      return systemdObservation(
+        identity.timerName,
+        paths.timer,
+        stableRunner.state,
+        stableRunner.message ?? 'Stable scheduler runner is unavailable.'
+      )
+    }
     const nativeLog = resolve(this.paths.logs, `${definition.name}.native.log`)
     const expected = renderSystemdUnits({
       calendarEntries: entries,

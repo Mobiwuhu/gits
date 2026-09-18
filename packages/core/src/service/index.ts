@@ -8,6 +8,7 @@ export {
   gitsExternalPersistenceRegistry,
   gitsHomePersistenceKeys,
   gitsHomePersistenceRegistry,
+  gitsManagedArtifactKeys,
   gitsManagedArtifactRegistry,
   gitsPersistenceRootRegistry,
   registeredTopLevelNames,
@@ -20,4 +21,5 @@ export {
   type GitsHomePersistenceEntry,
   type GitsHomePersistenceKey,
   type GitsManagedArtifactRegistry,
+  type GitsManagedArtifactKey,
 } from './gitsPersistenceRegistry'

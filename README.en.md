@@ -6,19 +6,29 @@
 
 `task.config.jsonc` stores only stable intent: repository identity, task branch, the remote baseline used when the branch is first created, and an optional working-tree scope. The current branch, working-tree changes, upstream, effective sparse checkout, and commit state always come from Git itself.
 
-The repository is a modular monolith composed of `packages/core` and `apps/cli`. Core contains the business services; CLI handles Incur arguments, interaction, and output. Every command uses ReDI constructor injection and explicit registration instead of file-system route scanning. The two workspaces are published as `@gits/core` and `@gits/cli` with the same version, while the installed command remains `gits`.
+The repository is a modular monolith composed of `packages/core` and `apps/cli`. Core contains the business services; CLI handles Incur arguments, interaction, and output. Every command uses ReDI constructor injection and explicit registration instead of file-system route scanning. Source code uses the stable logical package names `@gits/core` and `@gits/cli`; release packaging maps them to the real names for each registry. The installed command remains `gits`.
 
 ## Installation
 
+Replace `your-scope` with the scope for the chosen release channel:
+
 ```sh
-pnpm add --global @gits/cli
+npm install --global @your-scope/gits
 gits --help
+```
+
+For a private registry, route dependencies by scope and replace the example registry URL:
+
+```sh
+npm install --global @your-scope/gits \
+  --registry=https://registry.npmjs.org/ \
+  --@your-scope:registry=https://registry.example.com/
 ```
 
 To reuse only the underlying services and contracts:
 
 ```sh
-pnpm add @gits/core
+npm install @your-scope/gits-core
 ```
 
 ## Requirements
@@ -53,7 +63,20 @@ pnpm check
 
 Code quality is configured directly through Oxlint and Oxfmt. Oxlint enables the core correctness, suspicious, and performance categories plus a small set of project rules. Oxfmt uses single quotes and no semicolons. Lefthook runs both checks during `pre-commit` and uses Commitlint to enforce Conventional Commits during `commit-msg`. Installing dependencies registers these Git hooks automatically.
 
-Relizy manages releases in unified mode, so the root package, `@gits/cli`, and `@gits/core` always move to the same version. Maintainers can preview a release with `pnpm release:check` and publish with `pnpm release`.
+Relizy manages unified versions, changelogs, Git tags, and GitHub Releases only, so the root package, CLI, and Core always move to the same version. Registry publishing is a separate step.
+
+Copy `.publish.example.json` to `.publish.local.json` and configure each channel's package names and registry. The local configuration is ignored by Git and excluded from published packages.
+
+```sh
+pnpm release:check           # preview the version release
+pnpm release --patch         # create the version without uploading packages
+pnpm publish:internal:check  # preview the private channel with example configuration
+pnpm publish:internal        # publish the private channel with local configuration
+pnpm publish:npm:check       # preview public npm with example configuration
+pnpm publish:npm             # publish public npm with local configuration
+```
+
+The channel publisher creates temporary tarballs. The CLI keeps importing `@gits/core`, while the release manifest aliases that dependency to the real Core package, for example `npm:@your-scope/gits-core@<version>`. Temporary files are removed afterward, and source manifests remain unchanged.
 
 Run the CLI directly from TypeScript source:
 
@@ -142,7 +165,7 @@ To reuse the task context from an existing task directory:
 ```sh
 mkdir -p /tmp/gits-demo-copy
 pnpm start -- -C /tmp/gits-demo-copy init \
-  --scan /Users/bytedance/Desktop/tasks/task-save-btn-state
+  --scan ~/tasks/task-example
 ```
 
 `--scan` recursively copies every file and directory from the source task except the source `repos/` tree. The target task installs its own repository workspaces from the imported `task.config.jsonc`. Scanning does not recursively search for other task configurations, access remotes, or modify the source directory.
@@ -154,8 +177,8 @@ Use the optional `checkout` array to limit which directories are materialized in
 ```jsonc
 {
   "repos": {
-    "meego-aio": {
-      "url": "git@code.byted.org:dc/meego-aio.git",
+    "backend-aio": {
+      "url": "git@github.com:example/application.git",
       "branch": "feat/my-task",
       "from": "origin/main",
       "checkout": ["knowledge"],
@@ -167,8 +190,8 @@ Use the optional `checkout` array to limit which directories are materialized in
 `checkout: null` means a full checkout. An array must contain at least one repository-relative directory. Existing configurations may omit this field for compatibility, but `gits init` no longer relies on that implicit form. Version 1 uses Git cone-mode sparse checkout and rejects absolute paths, `..`, backslashes, globs, individual files, and `.git` management paths. Cone mode keeps direct files at the repository root but does not materialize unrelated subdirectories.
 
 ```sh
-gits install meego-aio
-gits status meego-aio
+gits install backend-aio
+gits status backend-aio
 ```
 
 `install` installs missing repositories and safely reconciles existing ones. After changing `checkout`, run `install` again to apply it. If the working tree contains uncommitted or untracked changes, the CLI refuses to change the checkout scope. `status` reports configuration drift as `checkout-different`, and `switch` reapplies the configured sparse checkout after changing the task branch. If a configured path is absent from the target `HEAD`, installation fails with `checkout-path-missing` and leaves no new repository behind.
@@ -176,8 +199,8 @@ gits status meego-aio
 Sparse checkout and repository mirrors are independent features. A mirror always stores a complete bare repository keyed by normalized remote identity. `checkout` is not part of the mirror key, so multiple working-tree views of the same remote share one mirror:
 
 ```sh
-gits repo-mirrors add --from-task meego-aio --yes
-gits install meego-aio
+gits repo-mirrors add --from-task backend-aio --yes
+gits install backend-aio
 ```
 
 By default, non-dissociated installations continue to borrow mirror objects through alternates. Sparse checkout reduces materialized files in the task working tree; it does not reduce the complete mirror's object storage or automatically enable partial clone.
@@ -256,7 +279,8 @@ A mirror is a bare repository created with `git clone --mirror`. It contains Git
 ├── state/repo-mirror-dependencies/<name>.json
 ├── logs/repo-mirrors/<name>/*.jsonl
 ├── locks/
-├── bin/gits-repo-mirror-runner
+├── bin/gits-repo-mirror-runner.cjs
+├── bin/gits-repo-mirror-worker.mjs
 ├── tmp/
 └── trash/
 ```
@@ -280,6 +304,8 @@ A mirror is a bare repository created with `git clone --mirror`. It contains Git
 Mirror logs are bounded. Each mirror retains at most 20 completed logs totaling 10 MiB, and all mirrors share a 256 MiB cap for completed logs. Active logs left by abnormal exits are removed after the writer is confirmed dead and 24 hours have elapsed, with an absolute maximum lifetime of seven days. Each launchd/systemd emergency log is capped at 1 MiB with two backups, or about 3 MiB per mirror.
 
 A new mirror without `--schedule` refreshes roughly every six hours with a stable per-mirror offset. macOS uses a user LaunchAgent; Linux uses a `systemd --user` timer. `~/.gits/config.jsonc` remains the source of truth, while operating-system directories contain only rebuildable scheduler projections. `list --wide` shows the local path, active URL, aliases, cron expression, next run, native job, and generated fetch command. You can also run:
+
+The release package copies a dependency-bundled scheduler worker into `~/.gits/bin`, so native jobs do not reference an npm or pnpm installation directory; the worker still starts through the Node executable recorded when the runner is calibrated. The first invocation after an upgrade or reinstall refreshes an existing runner, and creating or updating a schedule rebuilds it as well. Removing only the npm package leaves `~/.gits` intact, so the installed worker can keep running while its Node executable remains available; the first invocation after reinstall aligns the runner with the current version. Use `gits uninstall` to stop schedules and remove machine data. `gits repo-mirrors doctor --fix --yes` rebuilds the runner and worker before reading configuration or repairing a mirror, so a damaged configuration or mirror cannot block runner calibration.
 
 ```sh
 gits repo-mirrors path api

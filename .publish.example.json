@@ -1,0 +1,12 @@
+{
+  "internal": {
+    "cliPackageName": "@your-scope/gits",
+    "corePackageName": "@your-scope/gits-core",
+    "registry": "https://registry.example.com/"
+  },
+  "npm": {
+    "cliPackageName": "@your-scope/gits",
+    "corePackageName": "@your-scope/gits-core",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

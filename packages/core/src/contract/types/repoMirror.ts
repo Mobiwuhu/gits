@@ -186,3 +186,13 @@ export interface RepoMirrorSchedulerObservation {
   readonly projectionPath: string | null
   readonly state: RepoMirrorScheduleState
 }
+
+export interface StableRunnerObservation {
+  readonly message?: string
+  readonly path: string
+  readonly state:
+    | RepoMirrorScheduleState.Ready
+    | RepoMirrorScheduleState.Drifted
+    | RepoMirrorScheduleState.Unavailable
+  readonly workerPath: string
+}

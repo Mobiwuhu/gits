@@ -1,4 +1,4 @@
-import { chmod } from 'node:fs/promises'
+import { chmod, readFile, stat } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 
 import { Inject } from '@wendellhu/redi'
@@ -6,35 +6,132 @@ import { Inject } from '@wendellhu/redi'
 import {
   IFileSystemService,
   IGitsPathService,
+  IRepoMirrorWorkerSource,
   RepoMirrorInvocationSource,
+  RepoMirrorScheduleState,
 } from '../../../contract/index'
 import type {
   IStableRunnerInstaller,
   RepoMirrorScheduledInvocation,
+  StableRunnerObservation,
 } from '../../../contract/index'
 import { gitsManagedArtifactRegistry } from '../../../service/index'
 
 export const nativeRepoMirrorLogMaximumBytes: number = 1024 * 1024
 export const nativeRepoMirrorLogMaximumBackups = 2
 
+export interface StableRunnerInstallerOptions {
+  readonly nodeExecutable?: string
+}
+
 export class StableRunnerInstaller implements IStableRunnerInstaller {
-  readonly #cliEntry: string
-  readonly #nodeArguments: readonly string[]
+  readonly #nodeExecutable: string
+  #workerSourceContent: Promise<string> | null = null
 
   constructor(
     @Inject(IGitsPathService) private readonly paths: IGitsPathService,
     @Inject(IFileSystemService) private readonly fileSystem: IFileSystemService,
-    cliEntry: string = process.argv[1] ?? '',
-    nodeArguments: readonly string[] = schedulerNodeArguments(process.execArgv)
+    @Inject(IRepoMirrorWorkerSource) private readonly workerSource: string,
+    options: StableRunnerInstallerOptions = {}
   ) {
-    this.#cliEntry = resolve(cliEntry)
-    this.#nodeArguments = nodeArguments
+    this.#nodeExecutable = resolve(options.nodeExecutable ?? process.execPath)
+  }
+
+  async inspect(): Promise<StableRunnerObservation> {
+    const path = this.path()
+    const workerPath = this.workerPath()
+    let workerSource: string
+    try {
+      workerSource = await this.readWorkerSource()
+    } catch (error) {
+      return {
+        message: errorMessage(error),
+        path,
+        state: RepoMirrorScheduleState.Unavailable,
+        workerPath,
+      }
+    }
+
+    let runner: string | null
+    let worker: string | null
+    try {
+      const installed = await Promise.all([
+        readOptional(path),
+        readOptional(workerPath),
+      ])
+      runner = installed[0] ?? null
+      worker = installed[1] ?? null
+    } catch (error) {
+      return {
+        message: errorMessage(error),
+        path,
+        state: RepoMirrorScheduleState.Unavailable,
+        workerPath,
+      }
+    }
+    if (runner === null || worker === null) {
+      return {
+        message: 'Stable scheduler runner or worker is missing.',
+        path,
+        state: RepoMirrorScheduleState.Drifted,
+        workerPath,
+      }
+    }
+    const expectedRunner = runnerSource(this.#nodeExecutable, workerPath)
+    if (runner !== expectedRunner || worker !== workerSource) {
+      return {
+        message:
+          'Stable scheduler runner does not match the current gits installation.',
+        path,
+        state: RepoMirrorScheduleState.Drifted,
+        workerPath,
+      }
+    }
+    try {
+      const [runnerMetadata, workerMetadata] = await Promise.all([
+        stat(path),
+        stat(workerPath),
+      ])
+      if (
+        !runnerMetadata.isFile() ||
+        !workerMetadata.isFile() ||
+        (runnerMetadata.mode & 0o111) === 0
+      ) {
+        return {
+          message: 'Stable scheduler runner is not an executable file.',
+          path,
+          state: RepoMirrorScheduleState.Drifted,
+          workerPath,
+        }
+      }
+    } catch (error) {
+      return {
+        message: errorMessage(error),
+        path,
+        state: RepoMirrorScheduleState.Unavailable,
+        workerPath,
+      }
+    }
+    return {
+      path,
+      state: RepoMirrorScheduleState.Ready,
+      workerPath,
+    }
   }
 
   async install(): Promise<string> {
     const path = this.path()
-    const content = `#!${process.execPath}\n${runnerSource(process.execPath, this.#nodeArguments, this.#cliEntry)}`
-    await this.fileSystem.writeFileAtomically(path, content, 0o700)
+    const workerPath = this.workerPath()
+    const workerSource = await this.readWorkerSource()
+    if ((await readOptional(workerPath)) !== workerSource) {
+      await this.fileSystem.writeFileAtomically(workerPath, workerSource, 0o700)
+    } else {
+      await chmod(workerPath, 0o700)
+    }
+    const content = runnerSource(this.#nodeExecutable, workerPath)
+    if ((await readOptional(path)) !== content) {
+      await this.fileSystem.writeFileAtomically(path, content, 0o700)
+    }
     await chmod(path, 0o700)
     return path
   }
@@ -42,7 +139,7 @@ export class StableRunnerInstaller implements IStableRunnerInstaller {
   invocation(name: string): RepoMirrorScheduledInvocation {
     const executable = this.path()
     const path = uniquePathEntries([
-      dirname(process.execPath),
+      dirname(this.#nodeExecutable),
       '/opt/homebrew/bin',
       '/usr/local/bin',
       '/usr/bin',
@@ -77,15 +174,64 @@ export class StableRunnerInstaller implements IStableRunnerInstaller {
       gitsManagedArtifactRegistry.stableSchedulerRunner.fileName
     )
   }
+
+  async refreshIfInstalled(): Promise<boolean> {
+    const [runnerExists, workerExists] = await Promise.all([
+      pathExists(this.path()),
+      pathExists(this.workerPath()),
+    ])
+    if (!runnerExists && !workerExists) {
+      return false
+    }
+    const observation = await this.inspect()
+    if (observation.state !== RepoMirrorScheduleState.Ready) {
+      await this.install()
+    }
+    return true
+  }
+
+  private async readWorkerSource(): Promise<string> {
+    if (this.#workerSourceContent === null) {
+      this.#workerSourceContent = this.loadWorkerSource()
+    }
+    return this.#workerSourceContent
+  }
+
+  private async loadWorkerSource(): Promise<string> {
+    const workerSource = resolve(this.workerSource)
+    let content: string
+    try {
+      content = await readFile(workerSource, 'utf-8')
+    } catch (error) {
+      throw new Error(
+        `Cannot read packaged scheduler worker ${workerSource}: ${errorMessage(error)}`,
+        { cause: error }
+      )
+    }
+    if (
+      !content.includes(
+        gitsManagedArtifactRegistry.schedulerWorker.bundleMarker
+      )
+    ) {
+      throw new Error(
+        `Packaged scheduler worker ${workerSource} has no gits bundle marker.`
+      )
+    }
+    return content
+  }
+
+  private workerPath(): string {
+    return resolve(
+      this.paths.bin,
+      gitsManagedArtifactRegistry.schedulerWorker.fileName
+    )
+  }
 }
 
-function runnerSource(
-  executable: string,
-  nodeArguments: readonly string[],
-  cliEntry: string
-): string {
-  const prefix = JSON.stringify([...nodeArguments, cliEntry])
+function runnerSource(executable: string, workerPath: string): string {
+  const prefix = JSON.stringify([workerPath])
   return [
+    '#!/usr/bin/env node',
     "'use strict'",
     "const fs = require('node:fs')",
     "const path = require('node:path')",
@@ -167,6 +313,11 @@ function runnerSource(
     '  const sink = nativeLogPath ? openLogSink(nativeLogPath) : null',
     `  const child = spawn(${JSON.stringify(executable)}, ${prefix}.concat(process.argv.slice(2)), { env: process.env, stdio: sink ? ['ignore', 'ignore', 'pipe'] : 'inherit' })`,
     "  if (sink && child.stderr) child.stderr.on('data', (chunk) => sink.write(chunk))",
+    "  for (const signal of ['SIGHUP', 'SIGINT', 'SIGTERM']) {",
+    '    process.once(signal, () => {',
+    '      if (child.exitCode === null && child.signalCode === null) child.kill(signal)',
+    '    })',
+    '  }',
     "  child.once('error', (error) => {",
     '    if (sink) sink.write(`[gits] ${error.message}\\n`)',
     '    else console.error(error.message)',
@@ -184,30 +335,44 @@ function runnerSource(
   ].join('\n')
 }
 
-function schedulerNodeArguments(
-  arguments_: readonly string[]
-): readonly string[] {
-  const kept: string[] = []
-  for (let index = 0; index < arguments_.length; index += 1) {
-    const argument = arguments_[index]
-    if (argument === undefined) {
-      continue
-    }
-    if (argument.startsWith('--import=') || argument.startsWith('--loader=')) {
-      kept.push(argument)
-    } else if (argument === '--import' || argument === '--loader') {
-      const value = arguments_[index + 1]
-      if (value !== undefined) {
-        kept.push(argument, value)
-      }
-      index += 1
-    }
-  }
-  return kept
-}
-
 function uniquePathEntries(entries: readonly string[]): readonly string[] {
   return entries.filter(
     (entry, index) => entry.length > 0 && entries.indexOf(entry) === index
+  )
+}
+
+async function readOptional(path: string): Promise<string | null> {
+  try {
+    return await readFile(path, 'utf-8')
+  } catch (error) {
+    if (hasCode(error, 'ENOENT')) {
+      return null
+    }
+    throw error
+  }
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path)
+    return true
+  } catch (error) {
+    if (hasCode(error, 'ENOENT')) {
+      return false
+    }
+    throw error
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function hasCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === code
   )
 }

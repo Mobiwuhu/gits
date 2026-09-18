@@ -5,7 +5,7 @@ export default defineConfig({
     formatCmd: 'pnpm format',
   },
   hooks: {
-    'before:publish': 'pnpm check',
+    'before:release': 'pnpm check',
   },
   monorepo: {
     includePrivates: true,
@@ -13,12 +13,9 @@ export default defineConfig({
     versionMode: 'unified',
   },
   projectName: 'gits',
-  publish: {
-    access: 'public',
-    packageManager: 'pnpm',
-  },
   release: {
     prComment: false,
+    publish: false,
     social: false,
   },
 })

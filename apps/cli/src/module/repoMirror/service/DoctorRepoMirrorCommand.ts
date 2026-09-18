@@ -67,7 +67,7 @@ export class DoctorRepoMirrorCommand implements IRepoMirrorSubcommand {
                 (await this.confirmation.confirm(
                   context,
                   context.options.yes,
-                  'Repair invalid repo mirrors?'
+                  'Repair repo mirrors and scheduler artifacts?'
                 ))
               return this.service.execute({
                 confirmed,

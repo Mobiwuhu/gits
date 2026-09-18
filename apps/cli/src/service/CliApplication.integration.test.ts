@@ -350,15 +350,15 @@ void describe('gits CLI', () => {
       '  // Imported verbatim from the source task.',
       '  "metadata": { "owner": "platform" },',
       '  "repos": {',
-      '    "project-manager": {',
-      '      "url": "git@code.byted.org:ad/project_manager_fe.git",',
-      '      "branch": "fix/save-btn-state",',
-      '      "from": "origin/ka_master_20260824",',
+      '    "frontend": {',
+      '      "url": "git@github.com:example/frontend.git",',
+      '      "branch": "feat/example",',
+      '      "from": "origin/main",',
       '    },',
-      '    "meego-ipd": {',
-      '      "url": "git@code.byted.org:dc/meego-ipd.git",',
-      '      "branch": "fix/save-btn-state",',
-      '      "from": "origin/ka_master_20260824",',
+      '    "backend-ipd": {',
+      '      "url": "git@github.com:example/backend.git",',
+      '      "branch": "feat/example",',
+      '      "from": "origin/main",',
       '    },',
       '  },',
       '}',
@@ -385,7 +385,7 @@ void describe('gits CLI', () => {
         await mkdir(resolve(source, path, '..'), { recursive: true })
         await writeFile(resolve(source, path), content)
       }
-      await mkdir(resolve(source, 'repos/project-manager/.git'), {
+      await mkdir(resolve(source, 'repos/frontend/.git'), {
         recursive: true,
       })
       await writeFile(
@@ -393,11 +393,11 @@ void describe('gits CLI', () => {
         'source repository instructions\n'
       )
       await writeFile(
-        resolve(source, 'repos/project-manager/package.json'),
-        '{"name":"project-manager"}\n'
+        resolve(source, 'repos/frontend/package.json'),
+        '{"name":"frontend"}\n'
       )
       await writeFile(
-        resolve(source, 'repos/project-manager/.git/HEAD'),
+        resolve(source, 'repos/frontend/.git/HEAD'),
         'ref: refs/heads/main\n'
       )
 
@@ -413,7 +413,7 @@ void describe('gits CLI', () => {
       assert.equal(imported.code, 0)
       assert.deepEqual(
         parseOutput(imported).repos.map((repository) => repository.name),
-        ['project-manager', 'meego-ipd']
+        ['frontend', 'backend-ipd']
       )
       assert.equal(
         await readFile(resolve(target, 'task.config.jsonc'), 'utf-8'),
@@ -423,7 +423,7 @@ void describe('gits CLI', () => {
         assert.equal(await readFile(resolve(target, path), 'utf-8'), content)
       }
       await assert.rejects(async () =>
-        access(resolve(target, 'repos/project-manager'))
+        access(resolve(target, 'repos/frontend'))
       )
       assert.match(
         await readFile(resolve(target, 'repos/AGENTS.md'), 'utf-8'),
@@ -434,11 +434,8 @@ void describe('gits CLI', () => {
         sourceConfig
       )
       assert.equal(
-        await readFile(
-          resolve(source, 'repos/project-manager/package.json'),
-          'utf-8'
-        ),
-        '{"name":"project-manager"}\n'
+        await readFile(resolve(source, 'repos/frontend/package.json'), 'utf-8'),
+        '{"name":"frontend"}\n'
       )
     } finally {
       await rm(root, { force: true, recursive: true })

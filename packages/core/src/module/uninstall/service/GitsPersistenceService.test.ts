@@ -18,6 +18,7 @@ import {
   FileSystemService,
   GitsPathService,
   gitsHomePersistenceRegistry,
+  gitsManagedArtifactRegistry,
 } from '../../../service/index'
 import { RepoMirrorSchedulerService } from '../../repoMirror/service/RepoMirrorSchedulerService'
 import { StableRunnerInstaller } from '../../repoMirror/service/StableRunnerInstaller'
@@ -81,7 +82,12 @@ void describe('gits persistence registry and uninstall cleanup', () => {
       })
       const runner = new SuccessfulCommandRunner()
       const fileSystem = new FileSystemService()
-      const stableRunner = new StableRunnerInstaller(paths, fileSystem)
+      const workerSource = await createWorkerSource(root)
+      const stableRunner = new StableRunnerInstaller(
+        paths,
+        fileSystem,
+        workerSource
+      )
       const scheduler = new RepoMirrorSchedulerService(
         paths,
         runner,
@@ -186,7 +192,12 @@ void describe('gits persistence registry and uninstall cleanup', () => {
       const paths = new GitsPathService({ environment, userHome })
       const runner = new SuccessfulCommandRunner()
       const fileSystem = new FileSystemService()
-      const stableRunner = new StableRunnerInstaller(paths, fileSystem)
+      const workerSource = await createWorkerSource(root)
+      const stableRunner = new StableRunnerInstaller(
+        paths,
+        fileSystem,
+        workerSource
+      )
       const scheduler = new RepoMirrorSchedulerService(
         paths,
         runner,
@@ -250,3 +261,13 @@ void describe('gits persistence registry and uninstall cleanup', () => {
     }
   })
 })
+
+async function createWorkerSource(root: string): Promise<string> {
+  const workerSource = resolve(root, 'repo-mirror-worker.mjs')
+  await writeFile(
+    workerSource,
+    `/* ${gitsManagedArtifactRegistry.schedulerWorker.bundleMarker} */\n`,
+    { mode: 0o700 }
+  )
+  return workerSource
+}

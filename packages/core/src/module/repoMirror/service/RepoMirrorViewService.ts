@@ -9,6 +9,7 @@ import {
   IRepoMirrorGitService,
   IRepoMirrorLoggerService,
   IRepoMirrorSchedulerService,
+  RepoMirrorScheduleState,
 } from '../../../contract/index'
 import type {
   IRepoMirrorViewService,
@@ -53,7 +54,8 @@ export class RepoMirrorViewService implements IRepoMirrorViewService {
         this.scheduler.inspect(definition),
       ])
     const next =
-      definition.schedule === undefined
+      definition.schedule === undefined ||
+      scheduler.state !== RepoMirrorScheduleState.Ready
         ? null
         : nextScheduledDate(definition.schedule.cron)
     const invocation = this.scheduler.invocation(definition.name)

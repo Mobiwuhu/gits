@@ -12,6 +12,7 @@ import {
   IRepoMirrorSchedulerService,
   IRepoMirrorStoreService,
   IRepoMirrorViewService,
+  IStableRunnerInstaller,
   RepoMirrorAction,
   RepoMirrorRepositoryState,
   RepoMirrorScheduleState,
@@ -47,6 +48,8 @@ export class DoctorRepoMirrorService implements IDoctorRepoMirrorService {
     private readonly scheduler: IRepoMirrorSchedulerService,
     @Inject(IRepoMirrorStoreService)
     private readonly store: IRepoMirrorStoreService,
+    @Inject(IStableRunnerInstaller)
+    private readonly stableRunner: IStableRunnerInstaller,
     @Inject(IRepoMirrorViewService)
     private readonly view: IRepoMirrorViewService
   ) {}
@@ -56,6 +59,14 @@ export class DoctorRepoMirrorService implements IDoctorRepoMirrorService {
   ): Promise<RepoMirrorCommandOutput> {
     if (input.fix && !input.confirmed) {
       throw new RepoMirrorUsageError('Repair requires confirmation or --yes.')
+    }
+    let runnerRepairError: string | null = null
+    if (input.fix) {
+      try {
+        await this.stableRunner.install()
+      } catch (error) {
+        runnerRepairError = errorMessage(error)
+      }
     }
     const configuration = await this.store.load()
     const definitions = this.configuration.select(configuration, input.names)
@@ -68,7 +79,16 @@ export class DoctorRepoMirrorService implements IDoctorRepoMirrorService {
     return {
       command: 'repo-mirrors doctor',
       mirrors,
-      ok: mirrors.every((mirror) => mirror.error === null),
+      ok:
+        runnerRepairError === null &&
+        mirrors.every((mirror) => mirror.error === null),
+      ...(runnerRepairError === null
+        ? {}
+        : {
+            warnings: [
+              `Could not repair the stable scheduler runner: ${runnerRepairError}`,
+            ],
+          }),
     }
   }
 
@@ -76,6 +96,20 @@ export class DoctorRepoMirrorService implements IDoctorRepoMirrorService {
     definition: RepoMirrorDefinition,
     input: DoctorRepoMirrorsInput
   ): Promise<RepoMirrorView> {
+    let schedulerError: string | null = null
+    if (definition.schedule !== undefined) {
+      try {
+        const schedule = input.fix
+          ? await this.scheduler.apply(definition)
+          : await this.scheduler.inspect(definition)
+        if (schedule.state !== RepoMirrorScheduleState.Ready) {
+          schedulerError =
+            schedule.message ?? `Native scheduler is ${schedule.state}.`
+        }
+      } catch (error) {
+        schedulerError = errorMessage(error)
+      }
+    }
     const path = this.view.mirrorPath(definition.name)
     let health = await this.git.inspect(definition, path)
     if (health.state !== RepoMirrorRepositoryState.Ready && input.fix) {
@@ -111,16 +145,13 @@ export class DoctorRepoMirrorService implements IDoctorRepoMirrorService {
         })
       }
     }
-    if (input.fix && definition.schedule !== undefined) {
-      const schedule = await this.scheduler.apply(definition)
-      if (schedule.state !== RepoMirrorScheduleState.Ready) {
-        return this.view.create(definition, RepoMirrorAction.Failed, true, {
-          error: commandError(
-            'scheduler-repair-failed',
-            schedule.message ?? 'Native scheduler is unavailable.'
-          ),
-        })
-      }
+    if (schedulerError !== null) {
+      return this.view.create(definition, RepoMirrorAction.Failed, true, {
+        error: commandError(
+          input.fix ? 'scheduler-repair-failed' : 'scheduler-invalid',
+          schedulerError
+        ),
+      })
     }
     return this.view.create(
       definition,
@@ -178,4 +209,8 @@ export class DoctorRepoMirrorService implements IDoctorRepoMirrorService {
       await releaseMirror()
     }
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

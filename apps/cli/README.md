@@ -1,10 +1,12 @@
-# @gits/cli
+# gits CLI
 
 The command-line interface for `gits`, a tool for managing multi-repository task workspaces.
 
+Replace `your-scope` with the scope for the chosen release channel:
+
 ```sh
-pnpm add --global @gits/cli
+npm install --global @your-scope/gits
 gits --help
 ```
 
-The repository README contains the complete command reference and development guide.
+The repository README contains registry configuration, the complete command reference, and the development guide.

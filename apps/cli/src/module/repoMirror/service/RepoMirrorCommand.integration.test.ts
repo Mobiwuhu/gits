@@ -21,6 +21,9 @@ const repositoryRoot = resolve(
   '../../../../../..'
 )
 const cliEntry = resolve(repositoryRoot, 'apps/cli/src/index.ts')
+const schedulerWorkerBundleMarker = 'gits-repo-mirror-worker-bundle:v1'
+const schedulerWorkerFileName = 'gits-repo-mirror-worker.mjs'
+const stableSchedulerRunnerFileName = 'gits-repo-mirror-runner.cjs'
 
 interface CommandResponse {
   readonly code: number
@@ -42,9 +45,11 @@ interface MirrorOutput {
     readonly error: { readonly code: string; readonly message: string } | null
     readonly forced?: boolean
     readonly name: string
+    readonly nextFetchAt: string | null
     readonly path: string
     readonly repositoryState: string
     readonly schedule: { readonly cron: string } | null
+    readonly scheduleState: string
     readonly urls: readonly string[]
   }[]
   readonly ok: boolean
@@ -243,6 +248,65 @@ void describe('gits repo-mirrors', () => {
       ) as UninstallOutput
       assert.deepEqual(forcedUninstallOutput.removedMirrors, ['api'])
       await assert.rejects(async () => access(gitsHome))
+    } finally {
+      await rm(root, { force: true, recursive: true })
+    }
+  })
+
+  void it('reports an unhealthy scheduler when doctor runs without --fix', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'gits-doctor-schedule-test-'))
+    const gitsHome = resolve(root, 'gits-home')
+    try {
+      const remote = await createRemote(root)
+      const remoteUrl = pathToFileURL(remote).href
+      const added = await gits(
+        [
+          'repo-mirrors',
+          'add',
+          remoteUrl,
+          '--name',
+          'api',
+          '--schedule',
+          'off',
+          '--yes',
+          '--json',
+        ],
+        gitsHome
+      )
+      assert.equal(added.code, 0, added.stderr)
+      await writeFile(
+        resolve(gitsHome, 'config.jsonc'),
+        `${JSON.stringify(
+          {
+            repoMirrors: [
+              {
+                name: 'api',
+                schedule: { cron: '17 1-23/6 * * *' },
+                urls: [remoteUrl],
+              },
+            ],
+            repoMirrorsSettings: { maxConcurrentFetches: 4 },
+            version: 1,
+          },
+          null,
+          2
+        )}\n`
+      )
+
+      const checked = await gits(
+        ['repo-mirrors', 'doctor', 'api', '--json'],
+        gitsHome
+      )
+      assert.notEqual(checked.code, 0)
+      const output = parseMirrors(checked)
+      assert.equal(output.ok, false)
+      assert.equal(output.mirrors[0]?.error?.code, 'scheduler-invalid')
+      assert.ok(
+        ['drifted', 'unavailable'].includes(
+          output.mirrors[0]?.scheduleState ?? ''
+        )
+      )
+      assert.equal(output.mirrors[0]?.nextFetchAt, null)
     } finally {
       await rm(root, { force: true, recursive: true })
     }
@@ -523,6 +587,78 @@ void describe('gits repo-mirrors', () => {
       await rm(root, { force: true, recursive: true })
     }
   })
+
+  void it('repairs the scheduler runner before an invalid config blocks doctor', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'gits-doctor-runner-test-'))
+    const gitsHome = resolve(root, 'gits-home')
+    const cliWrapper = resolve(root, 'cli-wrapper.mjs')
+    const workerSource = resolve(root, 'repo-mirror-worker.mjs')
+    try {
+      await mkdir(gitsHome, { recursive: true })
+      await writeFile(
+        resolve(gitsHome, 'config.jsonc'),
+        '{ this is not valid JSONC'
+      )
+      const workerContent = `/* ${schedulerWorkerBundleMarker} */\nprocess.stdout.write('worker-ready')\n`
+      await writeFile(workerSource, workerContent)
+      const bootstrapEntry = pathToFileURL(
+        resolve(repositoryRoot, 'apps/cli/src/bootstrap/index.ts')
+      ).href
+      const contractEntry = pathToFileURL(
+        resolve(repositoryRoot, 'apps/cli/src/contract/index.ts')
+      ).href
+      await writeFile(
+        cliWrapper,
+        [
+          `import { createContainer } from ${JSON.stringify(bootstrapEntry)}`,
+          `import { ICliApplication } from ${JSON.stringify(contractEntry)}`,
+          `const container = createContainer(${JSON.stringify(workerSource)})`,
+          'try {',
+          '  await container.get(ICliApplication).run(process.argv.slice(2))',
+          '} finally {',
+          '  container.dispose()',
+          '}',
+          '',
+        ].join('\n')
+      )
+
+      const repaired = await run(
+        process.execPath,
+        [
+          '--import=tsx',
+          cliWrapper,
+          'repo-mirrors',
+          'doctor',
+          '--fix',
+          '--yes',
+          '--json',
+        ],
+        repositoryRoot,
+        { GITS_HOME: gitsHome }
+      )
+      assert.notEqual(repaired.code, 0)
+      assert.match(`${repaired.stdout}\n${repaired.stderr}`, /Cannot parse/u)
+
+      const installedWorker = resolve(gitsHome, 'bin', schedulerWorkerFileName)
+      const installedRunner = resolve(
+        gitsHome,
+        'bin',
+        stableSchedulerRunnerFileName
+      )
+      assert.equal(await readFile(installedWorker, 'utf-8'), workerContent)
+      const runnerContent = await readFile(installedRunner, 'utf-8')
+      assert.match(
+        runnerContent,
+        new RegExp(escapeRegExp(installedWorker), 'u')
+      )
+      assert.doesNotMatch(
+        runnerContent,
+        new RegExp(escapeRegExp(workerSource), 'u')
+      )
+    } finally {
+      await rm(root, { force: true, recursive: true })
+    }
+  })
 })
 
 async function gits(
@@ -618,4 +754,8 @@ async function writeTaskConfiguration(
 
 function parseMirrors(response: CommandResponse): MirrorOutput {
   return JSON.parse(response.stdout) as MirrorOutput
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
 }
