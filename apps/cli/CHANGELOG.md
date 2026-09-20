@@ -26,4 +26,4 @@
 
 ### ❤️ Contributors
 
-- Ruantingyang <ruantingyang@bytedance.com>
+- Mobiwuhu
