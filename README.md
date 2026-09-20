@@ -6,21 +6,21 @@
 
 `task.config.jsonc` 只保存稳定意图：仓库身份、任务分支、首次创建分支时使用的远程基线，以及可选的工作区目录范围。当前分支、工作区改动、upstream、实际 sparse-checkout 和提交状态始终以原生 Git 为事实来源。
 
-仓库采用 `packages/core` + `apps/cli` 的模块化单体结构。Core 保存业务 Service，CLI 只负责 Incur 参数、交互和输出；全部 Command 通过 ReDI 构造器注入并显式注册，不扫描文件路由。源码和公共 npm 包统一使用 `@usegit/core` 与 `@usegit/cli`，安装 CLI 后的命令名仍是 `gits`。
+仓库采用 `packages/core` + `apps/cli` 的模块化单体结构。Core 保存业务 Service，CLI 只负责 Incur 参数、交互和输出；全部 Command 通过 ReDI 构造器注入并显式注册，不扫描文件路由。源码和公共 npm 包统一使用 `@usegits/core` 与 `@usegits/cli`，安装 CLI 后的命令名仍是 `gits`。
 
 ## 安装
 
 从公共 npm 安装 CLI：
 
 ```sh
-npm install --global @usegit/cli
+npm install --global @usegits/cli
 gits --help
 ```
 
 如果只需要复用底层 Service 和 Contract：
 
 ```sh
-npm install @usegit/core
+npm install @usegits/core
 ```
 
 ## 环境要求
@@ -45,7 +45,7 @@ pnpm build
 pnpm dev -- --help
 ```
 
-`pnpm build` 使用 tsdown/Rolldown 将 Core 和 CLI 构建为 Node.js ESM；`tsc` 只负责 `--noEmit` 类型检查，不参与生成运行产物。仓库内运行 CLI 时由 `tsx` 直接加载 TypeScript 源码，并显式启用 `@usegit/source` 条件，因此日常开发不要求先构建。
+`pnpm build` 使用 tsdown/Rolldown 将 Core 和 CLI 构建为 Node.js ESM；`tsc` 只负责 `--noEmit` 类型检查，不参与生成运行产物。仓库内运行 CLI 时由 `tsx` 直接加载 TypeScript 源码，并显式启用 `@usegits/source` 条件，因此日常开发不要求先构建。
 
 提交前可运行与 CI 相同的完整检查：
 
@@ -55,7 +55,7 @@ pnpm check
 
 代码质量工具直接使用 Oxlint 和 Oxfmt 的原生配置。Oxlint 只启用核心的 correctness、suspicious、perf 分类及少量项目规则；Oxfmt 保持单引号、无分号风格。Lefthook 会在 `pre-commit` 执行两项检查，并在 `commit-msg` 使用 Commitlint 校验 Conventional Commits。依赖安装时会自动注册这些 Git hooks。
 
-Relizy 负责 unified 版本、Changelog、Git 标签与 GitHub Release，根包、CLI 和 Core 会一起升级到同一版本。GitHub 的 **Release** workflow 随后从该版本 tag 发布固定的公共 npm 包 `@usegit/core` 和 `@usegit/cli`；包名与 registry 均由仓库固定，不读取本地映射配置。
+Relizy 负责 unified 版本、Changelog、Git 标签与 GitHub Release，根包、CLI 和 Core 会一起升级到同一版本。GitHub 的 **Release** workflow 随后从该版本 tag 发布固定的公共 npm 包 `@usegits/core` 和 `@usegits/cli`；包名与 registry 均由仓库固定，不读取本地映射配置。
 
 正常发布应在 GitHub Actions 页面手动运行 **Release** workflow，并选择 `patch`、`minor` 或 `major`。以下命令只用于本地预检、恢复或调试：
 
@@ -65,9 +65,9 @@ pnpm publish:npm:check       # 构建、验收并 dry-run 公共 npm 包
 pnpm publish:npm             # 仅在恢复或调试时手动发布公共 npm 包
 ```
 
-npm 发布脚本直接从两个公开包生成临时 tarball，依次发布 Core 和 CLI，并在重试时跳过已经存在的版本。CLI 源码仍通过 `@usegit/core` 维护模块边界；正式 CLI 会将 Core 与运行依赖打成一个自包含文件，因此安装 CLI 不需要额外解析 Core 或公共运行依赖。Core 仍作为独立包发布，供其他程序直接复用。整个过程不会改写源码包清单。
+npm 发布脚本直接从两个公开包生成临时 tarball，依次发布 Core 和 CLI，并在重试时跳过已经存在的版本。CLI 源码仍通过 `@usegits/core` 维护模块边界；正式 CLI 会将 Core 与运行依赖打成一个自包含文件，因此安装 CLI 不需要额外解析 Core 或公共运行依赖。Core 仍作为独立包发布，供其他程序直接复用。整个过程不会改写源码包清单。
 
-GitHub Actions 通过 npm Trusted Publishing 的 OIDC 临时凭据发布，不保存长期 `NPM_TOKEN`。全新包必须先交互式发布一次；创建成功后，应分别将 `@usegit/core` 和 `@usegit/cli` 的 Trusted Publisher 绑定到 `Mobiwuhu/gits`、`release.yml` 与 `npm` environment，后续版本即可完全由 Release workflow 发布。
+GitHub Actions 通过 npm Trusted Publishing 的 OIDC 临时凭据发布，不保存长期 `NPM_TOKEN`。全新包必须先交互式发布一次；创建成功后，应分别将 `@usegits/core` 和 `@usegits/cli` 的 Trusted Publisher 绑定到 `Mobiwuhu/gits`、`release.yml` 与 `npm` environment，后续版本即可完全由 Release workflow 发布。
 
 可以直接运行 CLI 的 TypeScript 源码：
 
@@ -368,7 +368,7 @@ packages/core/src/
 
 TypeScript 使用 Bundler 模块解析，源码相对导入不写文件扩展名，例如 `import './Foo'`。tsdown 会解析 `.ts` 模块并生成可由 Node.js 直接执行的 ESM，因此源码中不需要伪写 `.js` 后缀，仓库也不包含手写 JavaScript 源文件。
 
-Core 包使用单一的条件导出映射：显式启用 `@usegit/source` 时解析到 `src/index.ts`，普通类型消费者解析到 `dist/index.d.ts`，默认运行时解析到 `dist/index.js`。共享 TypeScript 配置通过 `customConditions` 启用源码条件，`pnpm dev`、测试和 Rolldown 构建也显式启用同一条件，保证静态类型与开发运行时都读取实时源码。Core tarball 同时包含 `src`、`templates` 和 `dist`，因此每个导出目标都真实存在；打包和发布不再改写清单。CLI 的开发链接与发布包则始终运行同一个 `dist/index.js`。
+Core 包使用单一的条件导出映射：显式启用 `@usegits/source` 时解析到 `src/index.ts`，普通类型消费者解析到 `dist/index.d.ts`，默认运行时解析到 `dist/index.js`。共享 TypeScript 配置通过 `customConditions` 启用源码条件，`pnpm dev`、测试和 Rolldown 构建也显式启用同一条件，保证静态类型与开发运行时都读取实时源码。Core tarball 同时包含 `src`、`templates` 和 `dist`，因此每个导出目标都真实存在；打包和发布不再改写清单。CLI 的开发链接与发布包则始终运行同一个 `dist/index.js`。
 
 ## 校验
 

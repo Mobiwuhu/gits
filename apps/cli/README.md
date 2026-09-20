@@ -3,7 +3,7 @@
 The command-line interface for `gits`, a tool for managing multi-repository task workspaces.
 
 ```sh
-npm install --global @usegit/cli
+npm install --global @usegits/cli
 gits --help
 ```
 

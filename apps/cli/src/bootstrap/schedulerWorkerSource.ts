@@ -1,7 +1,7 @@
 import { dirname, extname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { gitsManagedArtifactRegistry } from '@usegit/core'
+import { gitsManagedArtifactRegistry } from '@usegits/core'
 
 export function schedulerWorkerSource(moduleUrl: string): string {
   const modulePath = fileURLToPath(moduleUrl)

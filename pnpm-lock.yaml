@@ -113,7 +113,7 @@ importers:
 
   apps/cli:
     devDependencies:
-      '@usegit/core':
+      '@usegits/core':
         specifier: workspace:*
         version: link:../../packages/core
       '@wendellhu/redi':

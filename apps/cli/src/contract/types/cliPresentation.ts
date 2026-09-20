@@ -2,7 +2,7 @@ import type {
   CommandOutput,
   GitsUninstallOutput,
   RepoMirrorCommandOutput,
-} from '@usegit/core'
+} from '@usegits/core'
 
 import type { SuggestedCommand } from './cliContext'
 

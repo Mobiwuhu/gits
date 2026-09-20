@@ -6,21 +6,21 @@
 
 `task.config.jsonc` stores only stable intent: repository identity, task branch, the remote baseline used when the branch is first created, and an optional working-tree scope. The current branch, working-tree changes, upstream, effective sparse checkout, and commit state always come from Git itself.
 
-The repository is a modular monolith composed of `packages/core` and `apps/cli`. Core contains the business services; CLI handles Incur arguments, interaction, and output. Every command uses ReDI constructor injection and explicit registration instead of file-system route scanning. Source code and public npm packages use `@usegit/core` and `@usegit/cli`; the installed command remains `gits`.
+The repository is a modular monolith composed of `packages/core` and `apps/cli`. Core contains the business services; CLI handles Incur arguments, interaction, and output. Every command uses ReDI constructor injection and explicit registration instead of file-system route scanning. Source code and public npm packages use `@usegits/core` and `@usegits/cli`; the installed command remains `gits`.
 
 ## Installation
 
 Install the CLI from the public npm registry:
 
 ```sh
-npm install --global @usegit/cli
+npm install --global @usegits/cli
 gits --help
 ```
 
 To reuse only the underlying services and contracts:
 
 ```sh
-npm install @usegit/core
+npm install @usegits/core
 ```
 
 ## Requirements
@@ -45,7 +45,7 @@ pnpm build
 pnpm dev -- --help
 ```
 
-`pnpm build` uses tsdown/Rolldown to build Core and CLI as Node.js ESM. `tsc` performs `--noEmit` type checking only and does not generate runtime artifacts. Inside this repository, `tsx` loads the TypeScript sources with the `@usegit/source` condition explicitly enabled, so routine development does not require a prior build.
+`pnpm build` uses tsdown/Rolldown to build Core and CLI as Node.js ESM. `tsc` performs `--noEmit` type checking only and does not generate runtime artifacts. Inside this repository, `tsx` loads the TypeScript sources with the `@usegits/source` condition explicitly enabled, so routine development does not require a prior build.
 
 Run the same complete gate used by CI before committing:
 
@@ -55,7 +55,7 @@ pnpm check
 
 Code quality is configured directly through Oxlint and Oxfmt. Oxlint enables the core correctness, suspicious, and performance categories plus a small set of project rules. Oxfmt uses single quotes and no semicolons. Lefthook runs both checks during `pre-commit` and uses Commitlint to enforce Conventional Commits during `commit-msg`. Installing dependencies registers these Git hooks automatically.
 
-Relizy manages unified versions, changelogs, Git tags, and GitHub Releases, so the root package, CLI, and Core always move to the same version. The GitHub **Release** workflow then publishes the fixed public npm packages `@usegit/core` and `@usegit/cli` from that version tag. Package names and the registry are fixed in the repository rather than read from local mapping files.
+Relizy manages unified versions, changelogs, Git tags, and GitHub Releases, so the root package, CLI, and Core always move to the same version. The GitHub **Release** workflow then publishes the fixed public npm packages `@usegits/core` and `@usegits/cli` from that version tag. Package names and the registry are fixed in the repository rather than read from local mapping files.
 
 For a normal release, manually run the **Release** workflow from GitHub Actions and choose `patch`, `minor`, or `major`. The commands below are only for local validation, recovery, or debugging:
 
@@ -65,9 +65,9 @@ pnpm publish:npm:check       # build, verify, and dry-run the public packages
 pnpm publish:npm             # manually publish only for recovery or debugging
 ```
 
-The npm publisher creates temporary tarballs directly from the two public packages, publishes Core before CLI, and skips versions that already exist when a run is retried. The CLI source keeps the `@usegit/core` module boundary, while the released CLI bundles Core and all runtime dependencies into one self-contained file. Installing the CLI therefore does not need to resolve Core or public runtime dependencies. Core is still published separately for direct reuse. Source manifests remain unchanged throughout the process.
+The npm publisher creates temporary tarballs directly from the two public packages, publishes Core before CLI, and skips versions that already exist when a run is retried. The CLI source keeps the `@usegits/core` module boundary, while the released CLI bundles Core and all runtime dependencies into one self-contained file. Installing the CLI therefore does not need to resolve Core or public runtime dependencies. Core is still published separately for direct reuse. Source manifests remain unchanged throughout the process.
 
-GitHub Actions publishes with short-lived npm Trusted Publishing credentials over OIDC, so the repository stores no long-lived `NPM_TOKEN`. A brand-new package must be published interactively once. After creation, bind the Trusted Publisher for both `@usegit/core` and `@usegit/cli` to `Mobiwuhu/gits`, `release.yml`, and the `npm` environment; subsequent versions can then be published entirely by the Release workflow.
+GitHub Actions publishes with short-lived npm Trusted Publishing credentials over OIDC, so the repository stores no long-lived `NPM_TOKEN`. A brand-new package must be published interactively once. After creation, bind the Trusted Publisher for both `@usegits/core` and `@usegits/cli` to `Mobiwuhu/gits`, `release.yml`, and the `npm` environment; subsequent versions can then be published entirely by the Release workflow.
 
 Run the CLI directly from TypeScript source:
 
@@ -370,7 +370,7 @@ The rule is “depend on interfaces, register implementations.” Constructors i
 
 TypeScript uses Bundler module resolution. Relative source imports omit file extensions, for example `import './Foo'`. tsdown resolves the `.ts` modules and generates ESM that Node.js can execute directly, so source files do not pretend to import `.js` files and the repository contains no handwritten JavaScript source.
 
-The Core package has one conditional export map: the explicitly enabled `@usegit/source` condition resolves to `src/index.ts`, ordinary type consumers resolve to `dist/index.d.ts`, and the default runtime resolves to `dist/index.js`. The shared TypeScript configuration enables the source condition through `customConditions`; `pnpm dev`, tests, and the Rolldown build explicitly enable the same condition so static types and development runtime behavior both use live source. The Core tarball includes `src`, `templates`, and `dist`, so every export target exists, and packaging no longer rewrites the manifest. The linked and published CLI always run the same `dist/index.js` entry point.
+The Core package has one conditional export map: the explicitly enabled `@usegits/source` condition resolves to `src/index.ts`, ordinary type consumers resolve to `dist/index.d.ts`, and the default runtime resolves to `dist/index.js`. The shared TypeScript configuration enables the source condition through `customConditions`; `pnpm dev`, tests, and the Rolldown build explicitly enable the same condition so static types and development runtime behavior both use live source. The Core tarball includes `src`, `templates`, and `dist`, so every export target exists, and packaging no longer rewrites the manifest. The linked and published CLI always run the same `dist/index.js` entry point.
 
 ## Validation
 

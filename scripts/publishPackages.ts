@@ -7,8 +7,8 @@ import { promisify } from 'node:util'
 const execFileAsync = promisify(execFile)
 const repositoryRoot = resolve(import.meta.dirname, '..')
 const npmRegistry = 'https://registry.npmjs.org/'
-const cliPackageName = '@usegit/cli'
-const corePackageName = '@usegit/core'
+const cliPackageName = '@usegits/cli'
+const corePackageName = '@usegits/core'
 
 interface CommandOptions {
   readonly dryRun: boolean

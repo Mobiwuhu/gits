@@ -16,10 +16,10 @@ import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
 const repositoryRoot = resolve(import.meta.dirname, '..')
-const sourceCondition = '@usegit/source'
+const sourceCondition = '@usegits/source'
 
 interface ConditionalExportTarget {
-  readonly '@usegit/source'?: string
+  readonly '@usegits/source'?: string
   readonly default?: string
   readonly types?: string
 }
@@ -52,8 +52,8 @@ const corePackage = await readJson<PackageManifest>(
   resolve(coreDirectory, 'package.json')
 )
 
-assertEqual(cliPackage.name, '@usegit/cli', 'CLI package name')
-assertEqual(corePackage.name, '@usegit/core', 'Core package name')
+assertEqual(cliPackage.name, '@usegits/cli', 'CLI package name')
+assertEqual(corePackage.name, '@usegits/core', 'Core package name')
 assertEqual(cliPackage.version, rootPackage.version, 'CLI and root versions')
 assertEqual(corePackage.version, rootPackage.version, 'Core and root versions')
 assertEqual(rootPackage.license, 'Apache-2.0', 'root package license')
@@ -145,8 +145,8 @@ try {
     `${JSON.stringify(
       {
         dependencies: {
-          '@usegit/cli': `file:${cliArchive}`,
-          '@usegit/core': `file:${coreArchive}`,
+          '@usegits/cli': `file:${cliArchive}`,
+          '@usegits/core': `file:${coreArchive}`,
         },
         name: 'gits-package-consumer',
         private: true,
@@ -211,7 +211,7 @@ try {
   await mkdir(globalBin)
   await writeFile(lifecycleRunner, '#!/bin/sh\nexit 1\n', { mode: 0o700 })
   await symlink(
-    resolve(consumerDirectory, 'node_modules/@usegit/cli/dist/index.js'),
+    resolve(consumerDirectory, 'node_modules/@usegits/cli/dist/index.js'),
     globalCommand
   )
   const refreshedVersion = await run(
@@ -282,7 +282,7 @@ try {
     [
       '--input-type=module',
       '--eval',
-      "const core = await import('@usegit/core'); if (Object.keys(core).length === 0) process.exit(1)",
+      "const core = await import('@usegits/core'); if (Object.keys(core).length === 0) process.exit(1)",
     ],
     consumerDirectory
   )
@@ -292,7 +292,7 @@ try {
       `--conditions=${sourceCondition}`,
       '--input-type=module',
       '--eval',
-      "const url = import.meta.resolve('@usegit/core'); if (!url.endsWith('/src/index.ts')) process.exit(1)",
+      "const url = import.meta.resolve('@usegits/core'); if (!url.endsWith('/src/index.ts')) process.exit(1)",
     ],
     consumerDirectory
   )
@@ -367,7 +367,7 @@ async function resolveCore(useSource: boolean): Promise<string> {
     ...(useSource ? [`--conditions=${sourceCondition}`, '--import=tsx'] : []),
     '--input-type=module',
     '--eval',
-    `const url = import.meta.resolve('@usegit/core'); await import('@usegit/core'); process.stdout.write(url)`,
+    `const url = import.meta.resolve('@usegits/core'); await import('@usegits/core'); process.stdout.write(url)`,
   ]
   return (
     await run(process.execPath, arguments_, cliDirectory, {

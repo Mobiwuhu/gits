@@ -1,5 +1,5 @@
 {
-  "name": "@usegit/cli",
+  "name": "@usegits/cli",
   "version": "0.1.1",
   "description": "Command-line interface for managing multi-repository task workspaces",
   "keywords": [
@@ -34,11 +34,11 @@
   "scripts": {
     "build": "tsdown --config-loader tsx",
     "build:watch": "tsdown --config-loader tsx --watch",
-    "dev": "TSX_TSCONFIG_PATH=../../tsconfig.base.json node --import=tsx --conditions=@usegit/source src/index.ts",
+    "dev": "TSX_TSCONFIG_PATH=../../tsconfig.base.json node --import=tsx --conditions=@usegits/source src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "@usegit/core": "workspace:*",
+    "@usegits/core": "workspace:*",
     "@wendellhu/redi": "catalog:",
     "incur": "catalog:",
     "listr2": "catalog:",

@@ -446,7 +446,7 @@ void describe('gits CLI', () => {
 async function gits(args: readonly string[]): Promise<CommandResponse> {
   return run(
     process.execPath,
-    ['--import=tsx', '--conditions=@usegit/source', cliEntry, ...args],
+    ['--import=tsx', '--conditions=@usegits/source', cliEntry, ...args],
     repositoryRoot
   )
 }

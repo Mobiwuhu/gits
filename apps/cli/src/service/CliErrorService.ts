@@ -2,8 +2,8 @@ import {
   GitsError,
   IncompleteConfigurationError,
   initialRepositoryResult,
-} from '@usegit/core'
-import type { RepositoryCommandResult } from '@usegit/core'
+} from '@usegits/core'
+import type { RepositoryCommandResult } from '@usegits/core'
 
 import { exitCode } from '../contract/index'
 import type {

@@ -14,7 +14,7 @@ export default defineConfig({
   format: ['esm'],
   inputOptions: {
     resolve: {
-      conditionNames: ['@usegit/source', 'import', 'node', 'default'],
+      conditionNames: ['@usegits/source', 'import', 'node', 'default'],
       mainFields: ['module', 'main'],
     },
   },

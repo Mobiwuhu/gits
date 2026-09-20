@@ -626,7 +626,7 @@ void describe('gits repo-mirrors', () => {
         process.execPath,
         [
           '--import=tsx',
-          '--conditions=@usegit/source',
+          '--conditions=@usegits/source',
           cliWrapper,
           'repo-mirrors',
           'doctor',
@@ -668,7 +668,7 @@ async function gits(
 ): Promise<CommandResponse> {
   return run(
     process.execPath,
-    ['--import=tsx', '--conditions=@usegit/source', cliEntry, ...args],
+    ['--import=tsx', '--conditions=@usegits/source', cliEntry, ...args],
     repositoryRoot,
     {
       GITS_HOME: gitsHome,

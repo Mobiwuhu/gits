@@ -1,4 +1,4 @@
-import type { GitsUninstallOutput } from '@usegit/core'
+import type { GitsUninstallOutput } from '@usegits/core'
 
 import { formatCliTable } from './cliTable'
 

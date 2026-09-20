@@ -1,4 +1,4 @@
-import { coreDependencies, IRepoMirrorWorkerSource } from '@usegit/core'
+import { coreDependencies, IRepoMirrorWorkerSource } from '@usegits/core'
 import { Injector } from '@wendellhu/redi'
 
 import { cliDependencies } from '../dependencies'

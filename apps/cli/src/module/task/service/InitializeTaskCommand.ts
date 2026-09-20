@@ -1,4 +1,4 @@
-import { IInitializeTaskService } from '@usegit/core'
+import { IInitializeTaskService } from '@usegits/core'
 import { Inject } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 
