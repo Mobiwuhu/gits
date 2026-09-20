@@ -2,6 +2,19 @@
   "name": "gits-workspace",
   "version": "0.1.1",
   "private": true,
+  "homepage": "https://github.com/Mobiwuhu/gits#readme",
+  "bugs": {
+    "url": "https://github.com/Mobiwuhu/gits/issues"
+  },
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Mobiwuhu",
+    "url": "https://github.com/Mobiwuhu"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mobiwuhu/gits.git"
+  },
   "type": "module",
   "scripts": {
     "build": "pnpm --recursive --if-present run build",
@@ -14,12 +27,10 @@
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
     "link:global": "pnpm build && pnpm --dir apps/cli link --global",
-    "pack:check": "pnpm build && node --import=tsx scripts/verifyPackages.ts && node --import=tsx scripts/publishPackages.ts internal --dry-run && node --import=tsx scripts/publishPackages.ts npm --dry-run",
+    "pack:check": "pnpm build && node --import=tsx scripts/verifyPackages.ts && node --import=tsx scripts/publishPackages.ts --dry-run",
     "prepare": "node --import=tsx scripts/installGitHooks.ts",
-    "publish:internal": "pnpm check && node --import=tsx scripts/publishPackages.ts internal",
-    "publish:internal:check": "pnpm check && node --import=tsx scripts/publishPackages.ts internal --dry-run",
-    "publish:npm": "pnpm check && node --import=tsx scripts/publishPackages.ts npm",
-    "publish:npm:check": "pnpm check && node --import=tsx scripts/publishPackages.ts npm --dry-run",
+    "publish:npm": "pnpm check && node --import=tsx scripts/publishPackages.ts",
+    "publish:npm:check": "pnpm check",
     "release": "node --import=tsx scripts/runRelizy.ts",
     "release:check": "node --import=tsx scripts/runRelizy.ts --patch --dry-run --no-publish --no-provider-release --no-push --no-commit --yes",
     "test": "TSX_TSCONFIG_PATH=tsconfig.base.json node --import=tsx --conditions=@usegit/source --test apps/cli/src/service/CliApplication.integration.test.ts apps/cli/src/module/repoMirror/service/RepoMirrorCommand.integration.test.ts packages/core/src/service/ConcurrencyService.test.ts packages/core/src/service/gitUrl.test.ts packages/core/src/module/task/service/TaskConfigurationService.test.ts packages/core/src/module/task/service/TaskTemplateImportService.test.ts packages/core/src/module/repoMirror/service/RepoMirrorLoggerService.test.ts packages/core/src/module/repoMirror/service/RepoMirrorSchedulerService.test.ts packages/core/src/module/repoMirror/service/RepoMirrorStoreService.test.ts packages/core/src/module/uninstall/service/GitsPersistenceService.test.ts",

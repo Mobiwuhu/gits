@@ -6,7 +6,7 @@
 
 `task.config.jsonc` stores only stable intent: repository identity, task branch, the remote baseline used when the branch is first created, and an optional working-tree scope. The current branch, working-tree changes, upstream, effective sparse checkout, and commit state always come from Git itself.
 
-The repository is a modular monolith composed of `packages/core` and `apps/cli`. Core contains the business services; CLI handles Incur arguments, interaction, and output. Every command uses ReDI constructor injection and explicit registration instead of file-system route scanning. Source code uses the stable logical package names `@usegit/core` and `@usegit/cli`; release packaging maps them to the real names for each registry. The installed command remains `gits`.
+The repository is a modular monolith composed of `packages/core` and `apps/cli`. Core contains the business services; CLI handles Incur arguments, interaction, and output. Every command uses ReDI constructor injection and explicit registration instead of file-system route scanning. Source code and public npm packages use `@usegit/core` and `@usegit/cli`; the installed command remains `gits`.
 
 ## Installation
 
@@ -15,14 +15,6 @@ Install the CLI from the public npm registry:
 ```sh
 npm install --global @usegit/cli
 gits --help
-```
-
-For a private registry, route dependencies by scope and replace the example registry URL:
-
-```sh
-npm install --global @your-scope/gits \
-  --registry=https://registry.npmjs.org/ \
-  --@your-scope:registry=https://registry.example.com/
 ```
 
 To reuse only the underlying services and contracts:
@@ -63,20 +55,19 @@ pnpm check
 
 Code quality is configured directly through Oxlint and Oxfmt. Oxlint enables the core correctness, suspicious, and performance categories plus a small set of project rules. Oxfmt uses single quotes and no semicolons. Lefthook runs both checks during `pre-commit` and uses Commitlint to enforce Conventional Commits during `commit-msg`. Installing dependencies registers these Git hooks automatically.
 
-Relizy manages unified versions, changelogs, Git tags, and GitHub Releases only, so the root package, CLI, and Core always move to the same version. Registry publishing is a separate step.
+Relizy manages unified versions, changelogs, Git tags, and GitHub Releases, so the root package, CLI, and Core always move to the same version. The GitHub **Release** workflow then publishes the fixed public npm packages `@usegit/core` and `@usegit/cli` from that version tag. Package names and the registry are fixed in the repository rather than read from local mapping files.
 
-Copy `.publish.example.json` to `.publish.local.json` and configure each channel's package names and registry. The local configuration is ignored by Git and excluded from published packages.
+For a normal release, manually run the **Release** workflow from GitHub Actions and choose `patch`, `minor`, or `major`. The commands below are only for local validation, recovery, or debugging:
 
 ```sh
 pnpm release:check           # preview the version release
-pnpm release --patch         # create the version without uploading packages
-pnpm publish:internal:check  # preview the private channel with example configuration
-pnpm publish:internal        # publish the private channel with local configuration
-pnpm publish:npm:check       # preview public npm with example configuration
-pnpm publish:npm             # publish public npm with local configuration
+pnpm publish:npm:check       # build, verify, and dry-run the public packages
+pnpm publish:npm             # manually publish only for recovery or debugging
 ```
 
-The channel publisher creates temporary tarballs. The CLI source keeps the `@usegit/core` module boundary, while the released CLI bundles Core and all runtime dependencies into one self-contained file. Installing the CLI therefore does not need to resolve Core or public runtime dependencies. Core is still published separately for direct reuse. Temporary files are removed afterward, and source manifests remain unchanged.
+The npm publisher creates temporary tarballs directly from the two public packages, publishes Core before CLI, and skips versions that already exist when a run is retried. The CLI source keeps the `@usegit/core` module boundary, while the released CLI bundles Core and all runtime dependencies into one self-contained file. Installing the CLI therefore does not need to resolve Core or public runtime dependencies. Core is still published separately for direct reuse. Source manifests remain unchanged throughout the process.
+
+GitHub Actions publishes with short-lived npm Trusted Publishing credentials over OIDC, so the repository stores no long-lived `NPM_TOKEN`. A brand-new package must be published interactively once. After creation, bind the Trusted Publisher for both `@usegit/core` and `@usegit/cli` to `Mobiwuhu/gits`, `release.yml`, and the `npm` environment; subsequent versions can then be published entirely by the Release workflow.
 
 Run the CLI directly from TypeScript source:
 
@@ -388,3 +379,9 @@ pnpm check
 ```
 
 This command checks formatting, lint, types, architecture boundaries, tests, packages, and builds. CLI integration tests use isolated local bare Git remotes and cover scaffolding, `-C`, template import, configuration placeholders, installation, status, push, and `switch --stash`. Concurrency tests cover limits, stable result ordering, independent failures, and interruption semantics with Listr2 presentation enabled.
+
+## Author and license
+
+`gits` was created and is maintained by [Mobiwuhu](https://github.com/Mobiwuhu).
+
+This project is licensed under the [Apache License 2.0](LICENSE). Source redistributions and derivative works must retain the applicable copyright, attribution, and [`NOTICE`](NOTICE) notices as required by the license.

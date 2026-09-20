@@ -8,11 +8,27 @@
     "monorepo",
     "workspace"
   ],
+  "homepage": "https://github.com/Mobiwuhu/gits#readme",
+  "bugs": {
+    "url": "https://github.com/Mobiwuhu/gits/issues"
+  },
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Mobiwuhu",
+    "url": "https://github.com/Mobiwuhu"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mobiwuhu/gits.git",
+    "directory": "apps/cli"
+  },
   "bin": {
     "gits": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "NOTICE"
   ],
   "type": "module",
   "scripts": {

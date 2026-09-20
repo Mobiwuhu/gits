@@ -33,6 +33,7 @@ interface PackageManifest {
   readonly dependencies?: Readonly<Record<string, string>>
   readonly exports?: PackageExports
   readonly files?: readonly string[]
+  readonly license?: string
   readonly name: string
   readonly private?: boolean
   readonly publishConfig?: unknown
@@ -55,14 +56,21 @@ assertEqual(cliPackage.name, '@usegit/cli', 'CLI package name')
 assertEqual(corePackage.name, '@usegit/core', 'Core package name')
 assertEqual(cliPackage.version, rootPackage.version, 'CLI and root versions')
 assertEqual(corePackage.version, rootPackage.version, 'Core and root versions')
+assertEqual(rootPackage.license, 'Apache-2.0', 'root package license')
+assertEqual(cliPackage.license, 'Apache-2.0', 'CLI package license')
+assertEqual(corePackage.license, 'Apache-2.0', 'Core package license')
 assertPublishable(cliPackage)
 assertPublishable(corePackage)
-assertEqual(cliPackage.files?.join(','), 'dist', 'CLI published files')
+assertEqual(
+  cliPackage.files?.join(','),
+  'dist,LICENSE,NOTICE',
+  'CLI published files'
+)
 assertEqual(cliPackage.bin?.gits, './dist/index.js', 'CLI binary')
 assertEqual(cliPackage.publishConfig, undefined, 'CLI publishConfig')
 assertEqual(
   corePackage.files?.join(','),
-  'dist,src/**/*.ts,!src/**/*.test.ts,templates',
+  'dist,src/**/*.ts,!src/**/*.test.ts,templates,LICENSE,NOTICE',
   'Core published files'
 )
 assertEqual(corePackage.publishConfig, undefined, 'Core publishConfig')
@@ -110,7 +118,11 @@ try {
   const cliFiles = await archiveFiles(cliArchive)
   const coreFiles = await archiveFiles(coreArchive)
   assertIncludes(cliFiles, 'package/dist/index.js', 'CLI runtime')
+  assertIncludes(cliFiles, 'package/LICENSE', 'CLI license')
+  assertIncludes(cliFiles, 'package/NOTICE', 'CLI attribution notice')
   assertIncludes(coreFiles, 'package/dist/index.js', 'Core runtime')
+  assertIncludes(coreFiles, 'package/LICENSE', 'Core license')
+  assertIncludes(coreFiles, 'package/NOTICE', 'Core attribution notice')
   assertIncludes(coreFiles, 'package/dist/index.d.ts', 'Core declarations')
   assertIncludes(coreFiles, 'package/src/index.ts', 'Core source entry')
   assertIncludes(

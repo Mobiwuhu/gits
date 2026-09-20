@@ -6,7 +6,7 @@
 
 `task.config.jsonc` 只保存稳定意图：仓库身份、任务分支、首次创建分支时使用的远程基线，以及可选的工作区目录范围。当前分支、工作区改动、upstream、实际 sparse-checkout 和提交状态始终以原生 Git 为事实来源。
 
-仓库采用 `packages/core` + `apps/cli` 的模块化单体结构。Core 保存业务 Service，CLI 只负责 Incur 参数、交互和输出；全部 Command 通过 ReDI 构造器注入并显式注册，不扫描文件路由。源码使用稳定的逻辑包名 `@usegit/core` 和 `@usegit/cli`，发布时再映射到对应渠道的真实包名；安装 CLI 后的命令名仍是 `gits`。
+仓库采用 `packages/core` + `apps/cli` 的模块化单体结构。Core 保存业务 Service，CLI 只负责 Incur 参数、交互和输出；全部 Command 通过 ReDI 构造器注入并显式注册，不扫描文件路由。源码和公共 npm 包统一使用 `@usegit/core` 与 `@usegit/cli`，安装 CLI 后的命令名仍是 `gits`。
 
 ## 安装
 
@@ -15,14 +15,6 @@
 ```sh
 npm install --global @usegit/cli
 gits --help
-```
-
-使用私有 registry 时，可以按 scope 分流依赖。将示例地址替换为实际 registry：
-
-```sh
-npm install --global @your-scope/gits \
-  --registry=https://registry.npmjs.org/ \
-  --@your-scope:registry=https://registry.example.com/
 ```
 
 如果只需要复用底层 Service 和 Contract：
@@ -63,20 +55,19 @@ pnpm check
 
 代码质量工具直接使用 Oxlint 和 Oxfmt 的原生配置。Oxlint 只启用核心的 correctness、suspicious、perf 分类及少量项目规则；Oxfmt 保持单引号、无分号风格。Lefthook 会在 `pre-commit` 执行两项检查，并在 `commit-msg` 使用 Commitlint 校验 Conventional Commits。依赖安装时会自动注册这些 Git hooks。
 
-Relizy 只负责 unified 版本、Changelog、Git 标签与 GitHub Release，根包、CLI 和 Core 会一起升级到同一版本。渠道发布单独执行。
+Relizy 负责 unified 版本、Changelog、Git 标签与 GitHub Release，根包、CLI 和 Core 会一起升级到同一版本。GitHub 的 **Release** workflow 随后从该版本 tag 发布固定的公共 npm 包 `@usegit/core` 和 `@usegit/cli`；包名与 registry 均由仓库固定，不读取本地映射配置。
 
-复制 `.publish.example.json` 为 `.publish.local.json`，填写各渠道的包名和 registry。本地配置被 Git 忽略，不会进入发布包。
+正常发布应在 GitHub Actions 页面手动运行 **Release** workflow，并选择 `patch`、`minor` 或 `major`。以下命令只用于本地预检、恢复或调试：
 
 ```sh
 pnpm release:check           # 预演版本发布
-pnpm release --patch         # 生成版本，不上传 npm 包
-pnpm publish:internal:check  # 使用示例配置预演私有渠道
-pnpm publish:internal        # 使用本地配置发布私有渠道
-pnpm publish:npm:check       # 使用示例配置预演公共 npm
-pnpm publish:npm             # 使用本地配置发布公共 npm
+pnpm publish:npm:check       # 构建、验收并 dry-run 公共 npm 包
+pnpm publish:npm             # 仅在恢复或调试时手动发布公共 npm 包
 ```
 
-渠道发布脚本会先生成临时 tarball。CLI 源码仍通过 `@usegit/core` 维护模块边界；正式 CLI 会将 Core 与运行依赖打成一个自包含文件，因此安装 CLI 不需要额外解析 Core 或公共运行依赖。Core 仍作为独立包发布，供其他程序直接复用。临时目录结束后自动清理，不会修改源码包清单。
+npm 发布脚本直接从两个公开包生成临时 tarball，依次发布 Core 和 CLI，并在重试时跳过已经存在的版本。CLI 源码仍通过 `@usegit/core` 维护模块边界；正式 CLI 会将 Core 与运行依赖打成一个自包含文件，因此安装 CLI 不需要额外解析 Core 或公共运行依赖。Core 仍作为独立包发布，供其他程序直接复用。整个过程不会改写源码包清单。
+
+GitHub Actions 通过 npm Trusted Publishing 的 OIDC 临时凭据发布，不保存长期 `NPM_TOKEN`。全新包必须先交互式发布一次；创建成功后，应分别将 `@usegit/core` 和 `@usegit/cli` 的 Trusted Publisher 绑定到 `Mobiwuhu/gits`、`release.yml` 与 `npm` environment，后续版本即可完全由 Release workflow 发布。
 
 可以直接运行 CLI 的 TypeScript 源码：
 
@@ -386,3 +377,9 @@ pnpm check
 ```
 
 该命令会执行格式检查、lint、类型检查、架构依赖门禁、测试和构建。CLI 集成测试使用隔离的本地 bare Git remote，覆盖脚手架、`-C`、模板导入、配置占位符、安装、状态、push 和 `switch --stash`；并发测试覆盖 Listr2 展示开启时的并发上限、稳定结果顺序、独立失败和中断语义。
+
+## 作者与许可证
+
+`gits` 由 [Mobiwuhu](https://github.com/Mobiwuhu) 创建并维护。
+
+本项目采用 [Apache License 2.0](LICENSE) 开源。再分发源码或改编作品时，须按照许可证保留适用的版权、署名和 [`NOTICE`](NOTICE) 声明。

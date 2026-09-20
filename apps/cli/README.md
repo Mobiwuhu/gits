@@ -8,3 +8,5 @@ gits --help
 ```
 
 The repository README contains registry configuration, the complete command reference, and the development guide.
+
+Created and maintained by [Mobiwuhu](https://github.com/Mobiwuhu). Licensed under the [Apache License 2.0](LICENSE); see [NOTICE](NOTICE) for attribution information.

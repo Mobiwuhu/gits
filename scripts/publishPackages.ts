@@ -1,32 +1,16 @@
 import { execFile, spawn } from 'node:child_process'
-import {
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  rm,
-  writeFile,
-} from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
 const repositoryRoot = resolve(import.meta.dirname, '..')
-
-enum PublishChannel {
-  Internal = 'internal',
-  Npm = 'npm',
-}
-
-interface ChannelConfiguration {
-  readonly cliPackageName: string
-  readonly corePackageName: string
-  readonly registry: string
-}
+const npmRegistry = 'https://registry.npmjs.org/'
+const cliPackageName = '@usegit/cli'
+const corePackageName = '@usegit/core'
 
 interface CommandOptions {
-  readonly channel: PublishChannel
   readonly dryRun: boolean
   readonly tag: string
 }
@@ -44,66 +28,48 @@ interface PublishTarget {
 }
 
 const options = parseOptions(process.argv.slice(2))
-const configuration = await readChannelConfiguration(options)
-const temporaryDirectory = await mkdtemp(
-  resolve(tmpdir(), `gits-${options.channel}-publish-`)
-)
+const temporaryDirectory = await mkdtemp(resolve(tmpdir(), 'gits-npm-publish-'))
 
 try {
   const rootPackage = await readManifest(
     resolve(repositoryRoot, 'package.json')
   )
-  const sourceArchivesDirectory = resolve(temporaryDirectory, 'source-archives')
-  const channelArchivesDirectory = resolve(
-    temporaryDirectory,
-    'channel-archives'
-  )
-  await mkdir(sourceArchivesDirectory)
-  await mkdir(channelArchivesDirectory)
-
-  const sourceCoreArchive = await pack(
+  const coreArchive = await pack(
     resolve(repositoryRoot, 'packages/core'),
-    sourceArchivesDirectory
+    temporaryDirectory
   )
-  const sourceCliArchive = await pack(
+  const cliArchive = await pack(
     resolve(repositoryRoot, 'apps/cli'),
-    sourceArchivesDirectory
+    temporaryDirectory
   )
-  const coreArchive = await createChannelArchive({
-    destination: channelArchivesDirectory,
-    name: configuration.corePackageName,
-    sourceArchive: sourceCoreArchive,
-    stagingDirectory: resolve(temporaryDirectory, 'core'),
-    version: rootPackage.version,
-  })
-  const cliArchive = await createChannelArchive({
-    destination: channelArchivesDirectory,
-    name: configuration.cliPackageName,
-    sourceArchive: sourceCliArchive,
-    stagingDirectory: resolve(temporaryDirectory, 'cli'),
-    version: rootPackage.version,
-  })
+  const packedCore = await readArchiveManifest(coreArchive)
+  const packedCli = await readArchiveManifest(cliArchive)
+  assertEqual(packedCore.name, corePackageName, 'Core package name')
+  assertEqual(packedCli.name, cliPackageName, 'CLI package name')
+  assertEqual(packedCore.version, rootPackage.version, 'Core package version')
+  assertEqual(packedCli.version, rootPackage.version, 'CLI package version')
+
   const targets: readonly PublishTarget[] = [
     {
       archive: coreArchive,
-      name: configuration.corePackageName,
+      name: corePackageName,
       version: rootPackage.version,
     },
     {
       archive: cliArchive,
-      name: configuration.cliPackageName,
+      name: cliPackageName,
       version: rootPackage.version,
     },
   ]
   const publishedVersions = options.dryRun
     ? targets.map(() => false)
     : await Promise.all(
-        targets.map((target) => isPublished(target, configuration.registry))
+        targets.map((target) => isPublished(target, npmRegistry))
       )
   const pendingTargets = targets.filter((target, index) => {
     if (publishedVersions[index] === true) {
       process.stdout.write(
-        `${target.name}@${target.version} already exists in ${options.channel}; skipping it.\n`
+        `${target.name}@${target.version} already exists on npm; skipping it.\n`
       )
       return false
     }
@@ -111,25 +77,23 @@ try {
   })
 
   for (const target of pendingTargets) {
-    // Keep each package's dry-run output together.
+    // Keep each package's output together.
     // eslint-disable-next-line no-await-in-loop
-    await publish(target.archive, configuration.registry, options.tag, true)
+    await publish(target.archive, npmRegistry, options.tag, true)
   }
 
   if (options.dryRun) {
-    process.stdout.write(
-      `Dry run passed for ${options.channel} (${rootPackage.version}).\n`
-    )
+    process.stdout.write(`npm dry run passed for ${rootPackage.version}.\n`)
   } else {
     for (const target of pendingTargets) {
-      // Keep the two channel packages in a deterministic order.
+      // Publish Core before the CLI in a deterministic order.
       // eslint-disable-next-line no-await-in-loop
-      await publish(target.archive, configuration.registry, options.tag, false)
+      await publish(target.archive, npmRegistry, options.tag, false)
     }
     process.stdout.write(
       pendingTargets.length === 0
-        ? `All ${options.channel} packages are already published at ${rootPackage.version}.\n`
-        : `Published ${options.channel} packages at ${rootPackage.version}.\n`
+        ? `All npm packages are already published at ${rootPackage.version}.\n`
+        : `Published npm packages at ${rootPackage.version}.\n`
     )
   }
 } finally {
@@ -137,19 +101,17 @@ try {
 }
 
 function parseOptions(arguments_: readonly string[]): CommandOptions {
-  const [channelArgument, ...flags] = arguments_
-  const channel = parseChannel(channelArgument)
   let dryRun = false
   let tag = 'latest'
 
-  for (let index = 0; index < flags.length; index += 1) {
-    const flag = flags[index]
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const flag = arguments_[index]
     if (flag === '--dry-run') {
       dryRun = true
       continue
     }
     if (flag === '--tag') {
-      const value = flags[index + 1]
+      const value = arguments_[index + 1]
       if (value === undefined || value.startsWith('-')) {
         throw new Error('--tag requires a value')
       }
@@ -160,94 +122,7 @@ function parseOptions(arguments_: readonly string[]): CommandOptions {
     throw new Error(`Unknown publish option: ${flag ?? ''}`)
   }
 
-  return { channel, dryRun, tag }
-}
-
-function parseChannel(value: string | undefined): PublishChannel {
-  switch (value) {
-    case PublishChannel.Internal:
-      return PublishChannel.Internal
-    case PublishChannel.Npm:
-      return PublishChannel.Npm
-    default:
-      throw new Error(
-        'Usage: publishPackages.ts <internal|npm> [--dry-run] [--tag <tag>]'
-      )
-  }
-}
-
-async function readChannelConfiguration(
-  options_: CommandOptions
-): Promise<ChannelConfiguration> {
-  const filename = options_.dryRun
-    ? '.publish.example.json'
-    : '.publish.local.json'
-  let contents: string
-
-  try {
-    contents = await readFile(resolve(repositoryRoot, filename), 'utf-8')
-  } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-      throw new Error(
-        'Create .publish.local.json from .publish.example.json and configure the release channels before publishing.',
-        { cause: error }
-      )
-    }
-    throw error
-  }
-
-  const value: unknown = JSON.parse(contents)
-  if (!isRecord(value)) {
-    throw new Error('Invalid publish configuration')
-  }
-  const channelConfiguration = value[options_.channel]
-  if (!isChannelConfiguration(channelConfiguration)) {
-    throw new Error(`Invalid publish configuration for ${options_.channel}`)
-  }
-  return channelConfiguration
-}
-
-function isChannelConfiguration(value: unknown): value is ChannelConfiguration {
-  return (
-    isRecord(value) &&
-    typeof value.cliPackageName === 'string' &&
-    typeof value.corePackageName === 'string' &&
-    typeof value.registry === 'string'
-  )
-}
-
-async function createChannelArchive(options_: {
-  readonly destination: string
-  readonly name: string
-  readonly sourceArchive: string
-  readonly stagingDirectory: string
-  readonly version: string
-}): Promise<string> {
-  await mkdir(options_.stagingDirectory)
-  await runCapture('tar', [
-    '-xzf',
-    options_.sourceArchive,
-    '-C',
-    options_.stagingDirectory,
-  ])
-
-  const packageDirectory = resolve(options_.stagingDirectory, 'package')
-  const manifestPath = resolve(packageDirectory, 'package.json')
-  const manifest = await readManifest(manifestPath)
-  assertEqual(manifest.version, options_.version, `${manifest.name} version`)
-  manifest.name = options_.name
-
-  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
-  const archive = await pack(packageDirectory, options_.destination)
-  const packedManifest = await readArchiveManifest(archive)
-  assertEqual(packedManifest.name, options_.name, 'channel package name')
-  assertEqual(
-    packedManifest.version,
-    options_.version,
-    'channel package version'
-  )
-
-  return archive
+  return { dryRun, tag }
 }
 
 async function isPublished(
@@ -286,13 +161,12 @@ async function publish(
     'public',
     '--tag',
     tag,
-    '--no-git-checks',
     '--ignore-scripts',
   ]
   if (dryRun) {
     arguments_.push('--dry-run')
   }
-  await runInteractive('pnpm', arguments_)
+  await runInteractive('npm', arguments_)
 }
 
 async function pack(

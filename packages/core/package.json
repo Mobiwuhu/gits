@@ -7,11 +7,27 @@
     "monorepo",
     "workspace"
   ],
+  "homepage": "https://github.com/Mobiwuhu/gits#readme",
+  "bugs": {
+    "url": "https://github.com/Mobiwuhu/gits/issues"
+  },
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Mobiwuhu",
+    "url": "https://github.com/Mobiwuhu"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mobiwuhu/gits.git",
+    "directory": "packages/core"
+  },
   "files": [
     "dist",
     "src/**/*.ts",
     "!src/**/*.test.ts",
-    "templates"
+    "templates",
+    "LICENSE",
+    "NOTICE"
   ],
   "type": "module",
   "exports": {
