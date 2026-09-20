@@ -3,7 +3,7 @@
 import {
   gitsSchedulerWorkerEnvironmentVariable,
   IStableRunnerInstaller,
-} from '@gits/core'
+} from '@usegit/core'
 
 import { createContainer, schedulerWorkerSource } from './bootstrap/index'
 import { ICliApplication } from './contract/index'

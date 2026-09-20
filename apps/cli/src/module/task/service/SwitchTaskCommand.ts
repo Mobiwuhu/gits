@@ -1,4 +1,4 @@
-import { ISwitchTaskService } from '@gits/core'
+import { ISwitchTaskService } from '@usegit/core'
 import { Inject } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 

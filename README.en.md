@@ -6,14 +6,14 @@
 
 `task.config.jsonc` stores only stable intent: repository identity, task branch, the remote baseline used when the branch is first created, and an optional working-tree scope. The current branch, working-tree changes, upstream, effective sparse checkout, and commit state always come from Git itself.
 
-The repository is a modular monolith composed of `packages/core` and `apps/cli`. Core contains the business services; CLI handles Incur arguments, interaction, and output. Every command uses ReDI constructor injection and explicit registration instead of file-system route scanning. Source code uses the stable logical package names `@gits/core` and `@gits/cli`; release packaging maps them to the real names for each registry. The installed command remains `gits`.
+The repository is a modular monolith composed of `packages/core` and `apps/cli`. Core contains the business services; CLI handles Incur arguments, interaction, and output. Every command uses ReDI constructor injection and explicit registration instead of file-system route scanning. Source code uses the stable logical package names `@usegit/core` and `@usegit/cli`; release packaging maps them to the real names for each registry. The installed command remains `gits`.
 
 ## Installation
 
-Replace `your-scope` with the scope for the chosen release channel:
+Install the CLI from the public npm registry:
 
 ```sh
-npm install --global @your-scope/gits
+npm install --global @usegit/cli
 gits --help
 ```
 
@@ -28,7 +28,7 @@ npm install --global @your-scope/gits \
 To reuse only the underlying services and contracts:
 
 ```sh
-npm install @your-scope/gits-core
+npm install @usegit/core
 ```
 
 ## Requirements
@@ -50,10 +50,10 @@ Run these commands from the repository root:
 ```sh
 pnpm install
 pnpm build
-pnpm start -- --help
+pnpm dev -- --help
 ```
 
-`pnpm build` uses tsdown/Rolldown to build Core and CLI as Node.js ESM. `tsc` performs `--noEmit` type checking only and does not generate runtime artifacts. Inside this repository, `tsx` loads the TypeScript sources directly, so routine development does not require a prior build.
+`pnpm build` uses tsdown/Rolldown to build Core and CLI as Node.js ESM. `tsc` performs `--noEmit` type checking only and does not generate runtime artifacts. Inside this repository, `tsx` loads the TypeScript sources with the `@usegit/source` condition explicitly enabled, so routine development does not require a prior build.
 
 Run the same complete gate used by CI before committing:
 
@@ -76,7 +76,7 @@ pnpm publish:npm:check       # preview public npm with example configuration
 pnpm publish:npm             # publish public npm with local configuration
 ```
 
-The channel publisher creates temporary tarballs. The CLI source keeps the `@gits/core` module boundary, while the released CLI bundles Core and all runtime dependencies into one self-contained file. Installing the CLI therefore does not need to resolve Core or public runtime dependencies. Core is still published separately for direct reuse. Temporary files are removed afterward, and source manifests remain unchanged.
+The channel publisher creates temporary tarballs. The CLI source keeps the `@usegit/core` module boundary, while the released CLI bundles Core and all runtime dependencies into one self-contained file. Installing the CLI therefore does not need to resolve Core or public runtime dependencies. Core is still published separately for direct reuse. Temporary files are removed afterward, and source manifests remain unchanged.
 
 Run the CLI directly from TypeScript source:
 
@@ -92,7 +92,7 @@ pnpm build:watch
 
 After packaging or installation, the executable name is `gits`.
 
-### Global development link
+### Global link
 
 From the repository root:
 
@@ -101,7 +101,7 @@ pnpm link:global
 gits --help
 ```
 
-`link:global` registers the development CLI globally as `gits`. That entry point uses the repository's installed `tsx` to load CLI and Core sources, so source edits require neither a rebuild nor a global `tsx` installation. In a published tarball, `publishConfig` rewrites the executable entry to `dist/index.js`, which runs with native Node.js.
+`link:global` builds the whole workspace before registering the CLI globally as `gits`. The development link and the published tarball use the same `dist/index.js` entry point with native Node.js, so no global `tsx` installation is required. Rebuild after source changes, or keep `pnpm build:watch` running when the global command must stay current.
 
 ## Quick start
 
@@ -109,7 +109,7 @@ Create a task directory and generate its initial scaffold:
 
 ```sh
 mkdir -p /tmp/gits-demo
-pnpm start -- -C /tmp/gits-demo init
+pnpm dev -- -C /tmp/gits-demo init
 ```
 
 The directory will contain:
@@ -156,15 +156,15 @@ The generated `task.config.jsonc` explicitly lists and documents every supported
 Then prepare and inspect the repositories:
 
 ```sh
-pnpm start -- -C /tmp/gits-demo install
-pnpm start -- -C /tmp/gits-demo status
+pnpm dev -- -C /tmp/gits-demo install
+pnpm dev -- -C /tmp/gits-demo status
 ```
 
 To reuse the task context from an existing task directory:
 
 ```sh
 mkdir -p /tmp/gits-demo-copy
-pnpm start -- -C /tmp/gits-demo-copy init \
+pnpm dev -- -C /tmp/gits-demo-copy init \
   --scan ~/tasks/task-example
 ```
 
@@ -379,7 +379,7 @@ The rule is “depend on interfaces, register implementations.” Constructors i
 
 TypeScript uses Bundler module resolution. Relative source imports omit file extensions, for example `import './Foo'`. tsdown resolves the `.ts` modules and generates ESM that Node.js can execute directly, so source files do not pretend to import `.js` files and the repository contains no handwritten JavaScript source.
 
-The Core package uses pnpm's `publishConfig` manifest-rewrite strategy, without custom conditions or `--conditions`. The development manifest exports `src/index.ts` so TypeScript and `tsx` both consume live source. During `pnpm pack` or `pnpm publish`, pnpm rewrites `exports` and `types` to `dist/index.js` and `dist/index.d.ts`. `files` contains only `dist`, so the tarball is created from the package root with its root `package.json` and build artifacts; no `dist/package.json` is required. This relies on pnpm behavior, so packages must not be published with `npm publish`.
+The Core package has one conditional export map: the explicitly enabled `@usegit/source` condition resolves to `src/index.ts`, ordinary type consumers resolve to `dist/index.d.ts`, and the default runtime resolves to `dist/index.js`. The shared TypeScript configuration enables the source condition through `customConditions`; `pnpm dev`, tests, and the Rolldown build explicitly enable the same condition so static types and development runtime behavior both use live source. The Core tarball includes `src`, `templates`, and `dist`, so every export target exists, and packaging no longer rewrites the manifest. The linked and published CLI always run the same `dist/index.js` entry point.
 
 ## Validation
 

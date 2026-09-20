@@ -1,4 +1,4 @@
-import { IStatusTaskService } from '@gits/core'
+import { IStatusTaskService } from '@usegit/core'
 import { Inject } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 

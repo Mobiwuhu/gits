@@ -6,14 +6,14 @@
 
 `task.config.jsonc` 只保存稳定意图：仓库身份、任务分支、首次创建分支时使用的远程基线，以及可选的工作区目录范围。当前分支、工作区改动、upstream、实际 sparse-checkout 和提交状态始终以原生 Git 为事实来源。
 
-仓库采用 `packages/core` + `apps/cli` 的模块化单体结构。Core 保存业务 Service，CLI 只负责 Incur 参数、交互和输出；全部 Command 通过 ReDI 构造器注入并显式注册，不扫描文件路由。源码使用稳定的逻辑包名 `@gits/core` 和 `@gits/cli`，发布时再映射到对应渠道的真实包名；安装 CLI 后的命令名仍是 `gits`。
+仓库采用 `packages/core` + `apps/cli` 的模块化单体结构。Core 保存业务 Service，CLI 只负责 Incur 参数、交互和输出；全部 Command 通过 ReDI 构造器注入并显式注册，不扫描文件路由。源码使用稳定的逻辑包名 `@usegit/core` 和 `@usegit/cli`，发布时再映射到对应渠道的真实包名；安装 CLI 后的命令名仍是 `gits`。
 
 ## 安装
 
-将 `your-scope` 替换为所选发布渠道的 scope：
+从公共 npm 安装 CLI：
 
 ```sh
-npm install --global @your-scope/gits
+npm install --global @usegit/cli
 gits --help
 ```
 
@@ -28,7 +28,7 @@ npm install --global @your-scope/gits \
 如果只需要复用底层 Service 和 Contract：
 
 ```sh
-npm install @your-scope/gits-core
+npm install @usegit/core
 ```
 
 ## 环境要求
@@ -50,10 +50,10 @@ corepack enable
 ```sh
 pnpm install
 pnpm build
-pnpm start -- --help
+pnpm dev -- --help
 ```
 
-`pnpm build` 使用 tsdown/Rolldown 将 Core 和 CLI 构建为 Node.js ESM；`tsc` 只负责 `--noEmit` 类型检查，不参与生成运行产物。仓库内运行 CLI 时由 `tsx` 直接加载 TypeScript 源码，因此日常开发不要求先构建。
+`pnpm build` 使用 tsdown/Rolldown 将 Core 和 CLI 构建为 Node.js ESM；`tsc` 只负责 `--noEmit` 类型检查，不参与生成运行产物。仓库内运行 CLI 时由 `tsx` 直接加载 TypeScript 源码，并显式启用 `@usegit/source` 条件，因此日常开发不要求先构建。
 
 提交前可运行与 CI 相同的完整检查：
 
@@ -76,7 +76,7 @@ pnpm publish:npm:check       # 使用示例配置预演公共 npm
 pnpm publish:npm             # 使用本地配置发布公共 npm
 ```
 
-渠道发布脚本会先生成临时 tarball。CLI 源码仍通过 `@gits/core` 维护模块边界；正式 CLI 会将 Core 与运行依赖打成一个自包含文件，因此安装 CLI 不需要额外解析 Core 或公共运行依赖。Core 仍作为独立包发布，供其他程序直接复用。临时目录结束后自动清理，不会修改源码包清单。
+渠道发布脚本会先生成临时 tarball。CLI 源码仍通过 `@usegit/core` 维护模块边界；正式 CLI 会将 Core 与运行依赖打成一个自包含文件，因此安装 CLI 不需要额外解析 Core 或公共运行依赖。Core 仍作为独立包发布，供其他程序直接复用。临时目录结束后自动清理，不会修改源码包清单。
 
 可以直接运行 CLI 的 TypeScript 源码：
 
@@ -101,7 +101,7 @@ pnpm link:global
 gits --help
 ```
 
-`link:global` 会把开发态 CLI 注册为全局 `gits` 命令。该入口使用仓库已经安装的 `tsx` 加载 CLI 与 Core 源码，修改后无需重新构建，也不需要全局安装 `tsx`。正式 tarball 中的命令入口仍由 `publishConfig` 改写为 `dist/index.js`，使用原生 Node.js 运行。
+`link:global` 会先构建整个 workspace，再把 CLI 注册为全局 `gits` 命令。开发链接与正式 tarball 使用同一个 `dist/index.js` 入口和原生 Node.js 运行时，不需要全局安装 `tsx`。源码变化后需重新构建；需要持续同步全局命令时可同时运行 `pnpm build:watch`。
 
 ## 快速试用
 
@@ -109,7 +109,7 @@ gits --help
 
 ```sh
 mkdir -p /tmp/gits-demo
-pnpm start -- -C /tmp/gits-demo init
+pnpm dev -- -C /tmp/gits-demo init
 ```
 
 该目录会得到：
@@ -154,15 +154,15 @@ gits-demo/
 然后准备并查看仓库：
 
 ```sh
-pnpm start -- -C /tmp/gits-demo install
-pnpm start -- -C /tmp/gits-demo status
+pnpm dev -- -C /tmp/gits-demo install
+pnpm dev -- -C /tmp/gits-demo status
 ```
 
 若已有一个任务目录，可直接复用其中的任务上下文：
 
 ```sh
 mkdir -p /tmp/gits-demo-copy
-pnpm start -- -C /tmp/gits-demo-copy init \
+pnpm dev -- -C /tmp/gits-demo-copy init \
   --scan ~/tasks/task-example
 ```
 
@@ -377,7 +377,7 @@ packages/core/src/
 
 TypeScript 使用 Bundler 模块解析，源码相对导入不写文件扩展名，例如 `import './Foo'`。tsdown 会解析 `.ts` 模块并生成可由 Node.js 直接执行的 ESM，因此源码中不需要伪写 `.js` 后缀，仓库也不包含手写 JavaScript 源文件。
 
-Core 包采用 pnpm 的 `publishConfig` 清单改写方案，不使用自定义 condition 或 `--conditions`。开发清单的 `exports` 指向 `src/index.ts`，让 TypeScript 与 `tsx` 同时读取实时源码；执行 `pnpm pack/publish` 时，pnpm 会把 `exports` 和 `types` 改写为 `dist/index.js` 与 `dist/index.d.ts`。`files` 只收录 `dist`，因此 tarball 从包根目录生成，并包含根 `package.json` 和构建产物，不需要 `dist/package.json`。该方案依赖 pnpm 的扩展行为，不能改用 `npm publish`。
+Core 包使用单一的条件导出映射：显式启用 `@usegit/source` 时解析到 `src/index.ts`，普通类型消费者解析到 `dist/index.d.ts`，默认运行时解析到 `dist/index.js`。共享 TypeScript 配置通过 `customConditions` 启用源码条件，`pnpm dev`、测试和 Rolldown 构建也显式启用同一条件，保证静态类型与开发运行时都读取实时源码。Core tarball 同时包含 `src`、`templates` 和 `dist`，因此每个导出目标都真实存在；打包和发布不再改写清单。CLI 的开发链接与发布包则始终运行同一个 `dist/index.js`。
 
 ## 校验
 

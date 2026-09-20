@@ -2,7 +2,7 @@ import {
   IAddRepoMirrorService,
   IAddTaskRepoMirrorsService,
   RepoMirrorUsageError,
-} from '@gits/core'
+} from '@usegit/core'
 import { Inject } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 

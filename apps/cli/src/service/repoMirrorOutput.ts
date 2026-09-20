@@ -1,4 +1,4 @@
-import type { RepoMirrorCommandOutput, RepoMirrorView } from '@gits/core'
+import type { RepoMirrorCommandOutput, RepoMirrorView } from '@usegit/core'
 
 import { formatCliTable } from './cliTable'
 

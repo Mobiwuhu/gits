@@ -1,4 +1,4 @@
-import { IPushTaskService } from '@gits/core'
+import { IPushTaskService } from '@usegit/core'
 import { Inject } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 

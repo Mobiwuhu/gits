@@ -1,4 +1,4 @@
-import { IConcurrencyPresentationService } from '@gits/core'
+import { IConcurrencyPresentationService } from '@usegit/core'
 import type { Dependency } from '@wendellhu/redi'
 
 import {

@@ -1,5 +1,5 @@
 {
-  "name": "@gits/core",
+  "name": "@usegit/core",
   "version": "0.1.1",
   "description": "Core services for managing multi-repository task workspaces",
   "keywords": [
@@ -8,14 +8,18 @@
     "workspace"
   ],
   "files": [
-    "dist"
+    "dist",
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "templates"
   ],
   "type": "module",
-  "exports": "./src/index.ts",
-  "publishConfig": {
-    "types": "./dist/index.d.ts",
-    "exports": "./dist/index.js",
-    "access": "public"
+  "exports": {
+    ".": {
+      "@usegit/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "scripts": {
     "build": "tsdown --config-loader tsx",

@@ -11,25 +11,31 @@ import {
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
 const repositoryRoot = resolve(import.meta.dirname, '..')
+const sourceCondition = '@usegit/source'
+
+interface ConditionalExportTarget {
+  readonly '@usegit/source'?: string
+  readonly default?: string
+  readonly types?: string
+}
+
+interface PackageExports {
+  readonly '.'?: ConditionalExportTarget
+}
 
 interface PackageManifest {
   readonly bin?: Readonly<Record<string, string>>
   readonly dependencies?: Readonly<Record<string, string>>
-  readonly exports?: string
+  readonly exports?: PackageExports
   readonly files?: readonly string[]
   readonly name: string
   readonly private?: boolean
-  readonly publishConfig?: {
-    readonly access?: string
-    readonly bin?: Readonly<Record<string, string>>
-    readonly exports?: string
-    readonly types?: string
-  }
-  readonly types?: string
+  readonly publishConfig?: unknown
   readonly version: string
 }
 
@@ -45,29 +51,34 @@ const corePackage = await readJson<PackageManifest>(
   resolve(coreDirectory, 'package.json')
 )
 
-assertEqual(cliPackage.name, '@gits/cli', 'CLI package name')
-assertEqual(corePackage.name, '@gits/core', 'Core package name')
+assertEqual(cliPackage.name, '@usegit/cli', 'CLI package name')
+assertEqual(corePackage.name, '@usegit/core', 'Core package name')
 assertEqual(cliPackage.version, rootPackage.version, 'CLI and root versions')
 assertEqual(corePackage.version, rootPackage.version, 'Core and root versions')
 assertPublishable(cliPackage)
 assertPublishable(corePackage)
 assertEqual(cliPackage.files?.join(','), 'dist', 'CLI published files')
-assertEqual(cliPackage.bin?.gits, './dev.mjs', 'CLI development binary')
+assertEqual(cliPackage.bin?.gits, './dist/index.js', 'CLI binary')
+assertEqual(cliPackage.publishConfig, undefined, 'CLI publishConfig')
 assertEqual(
-  cliPackage.publishConfig?.bin?.gits,
-  './dist/index.js',
-  'CLI published binary'
+  corePackage.files?.join(','),
+  'dist,src/**/*.ts,!src/**/*.test.ts,templates',
+  'Core published files'
 )
-assertEqual(corePackage.exports, './src/index.ts', 'Core development export')
+assertEqual(corePackage.publishConfig, undefined, 'Core publishConfig')
+assertCoreExports(corePackage, 'Core source manifest')
+
+const sourceCoreResolution = await resolveCore(true)
 assertEqual(
-  corePackage.publishConfig?.exports,
-  './dist/index.js',
-  'Core published export'
+  sourceCoreResolution,
+  pathToFileURL(resolve(coreDirectory, 'src/index.ts')).href,
+  'Core source-condition resolution'
 )
+const defaultCoreResolution = await resolveCore(false)
 assertEqual(
-  corePackage.publishConfig?.types,
-  './dist/index.d.ts',
-  'Core published declarations'
+  defaultCoreResolution,
+  pathToFileURL(resolve(coreDirectory, 'dist/index.js')).href,
+  'Core default resolution'
 )
 
 const temporaryDirectory = await mkdtemp(
@@ -90,8 +101,9 @@ try {
     'packed CLI runtime dependency count'
   )
   assertEqual(packedCli.bin?.gits, './dist/index.js', 'packed CLI binary')
-  assertEqual(packedCore.exports, './dist/index.js', 'packed Core export')
-  assertEqual(packedCore.types, './dist/index.d.ts', 'packed Core declarations')
+  assertEqual(packedCli.publishConfig, undefined, 'packed CLI publishConfig')
+  assertEqual(packedCore.publishConfig, undefined, 'packed Core publishConfig')
+  assertCoreExports(packedCore, 'packed Core manifest')
   assertPublishable(packedCli)
   assertPublishable(packedCore)
 
@@ -100,14 +112,20 @@ try {
   assertIncludes(cliFiles, 'package/dist/index.js', 'CLI runtime')
   assertIncludes(coreFiles, 'package/dist/index.js', 'Core runtime')
   assertIncludes(coreFiles, 'package/dist/index.d.ts', 'Core declarations')
+  assertIncludes(coreFiles, 'package/src/index.ts', 'Core source entry')
+  assertIncludes(
+    coreFiles,
+    'package/templates/taskScaffold.md',
+    'Core source templates'
+  )
   assertIncludes(
     coreFiles,
     'package/dist/templates/taskScaffold.md',
     'Core templates'
   )
   assertNoMatch(cliFiles, /(?:^|\/)src\//u, 'CLI source files')
-  assertNoMatch(coreFiles, /(?:^|\/)src\//u, 'Core source files')
   assertNoMatch(cliFiles, /\.test\.[cm]?[jt]sx?$/u, 'CLI test files')
+  assertNoMatch(coreFiles, /\.test\.[cm]?[jt]sx?$/u, 'Core test files')
 
   const consumerDirectory = resolve(temporaryDirectory, 'consumer')
   await writeFile(
@@ -115,8 +133,8 @@ try {
     `${JSON.stringify(
       {
         dependencies: {
-          '@gits/cli': `file:${cliArchive}`,
-          '@gits/core': `file:${coreArchive}`,
+          '@usegit/cli': `file:${cliArchive}`,
+          '@usegit/core': `file:${coreArchive}`,
         },
         name: 'gits-package-consumer',
         private: true,
@@ -181,7 +199,7 @@ try {
   await mkdir(globalBin)
   await writeFile(lifecycleRunner, '#!/bin/sh\nexit 1\n', { mode: 0o700 })
   await symlink(
-    resolve(consumerDirectory, 'node_modules/@gits/cli/dist/index.js'),
+    resolve(consumerDirectory, 'node_modules/@usegit/cli/dist/index.js'),
     globalCommand
   )
   const refreshedVersion = await run(
@@ -252,7 +270,17 @@ try {
     [
       '--input-type=module',
       '--eval',
-      "const core = await import('@gits/core'); if (Object.keys(core).length === 0) process.exit(1)",
+      "const core = await import('@usegit/core'); if (Object.keys(core).length === 0) process.exit(1)",
+    ],
+    consumerDirectory
+  )
+  await run(
+    process.execPath,
+    [
+      `--conditions=${sourceCondition}`,
+      '--input-type=module',
+      '--eval',
+      "const url = import.meta.resolve('@usegit/core'); if (!url.endsWith('/src/index.ts')) process.exit(1)",
     ],
     consumerDirectory
   )
@@ -297,11 +325,43 @@ function assertPublishable(packageManifest: PackageManifest): void {
   if (packageManifest.private === true) {
     throw new Error(`${packageManifest.name} must not be private`)
   }
+}
+
+function assertCoreExports(
+  packageManifest: PackageManifest,
+  label: string
+): void {
+  const rootExport = packageManifest.exports?.['.']
   assertEqual(
-    packageManifest.publishConfig?.access,
-    'public',
-    `${packageManifest.name} access`
+    Object.keys(rootExport ?? {}).join(','),
+    `${sourceCondition},types,default`,
+    `${label} condition order`
   )
+  assertEqual(
+    rootExport?.[sourceCondition],
+    './src/index.ts',
+    `${label} source condition`
+  )
+  assertEqual(rootExport?.types, './dist/index.d.ts', `${label} declarations`)
+  assertEqual(
+    rootExport?.default,
+    './dist/index.js',
+    `${label} default runtime`
+  )
+}
+
+async function resolveCore(useSource: boolean): Promise<string> {
+  const arguments_ = [
+    ...(useSource ? [`--conditions=${sourceCondition}`, '--import=tsx'] : []),
+    '--input-type=module',
+    '--eval',
+    `const url = import.meta.resolve('@usegit/core'); await import('@usegit/core'); process.stdout.write(url)`,
+  ]
+  return (
+    await run(process.execPath, arguments_, cliDirectory, {
+      TSX_TSCONFIG_PATH: resolve(repositoryRoot, 'tsconfig.base.json'),
+    })
+  ).trim()
 }
 
 async function archiveFiles(archive: string): Promise<readonly string[]> {

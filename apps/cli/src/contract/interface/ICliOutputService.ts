@@ -2,7 +2,7 @@ import type {
   CommandOutput,
   GitsUninstallOutput,
   RepoMirrorCommandOutput,
-} from '@gits/core'
+} from '@usegit/core'
 import { createIdentifier } from '@wendellhu/redi'
 import type { IdentifierDecorator } from '@wendellhu/redi'
 

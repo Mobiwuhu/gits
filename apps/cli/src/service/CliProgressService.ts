@@ -1,6 +1,6 @@
 import type { Writable } from 'node:stream'
 
-import { ConcurrentRunStatus, ConcurrentTaskOutcomeStatus } from '@gits/core'
+import { ConcurrentRunStatus, ConcurrentTaskOutcomeStatus } from '@usegit/core'
 import type {
   ConcurrentPresentation,
   ConcurrentRunPresentation,
@@ -8,7 +8,7 @@ import type {
   ConcurrentTaskOutcome,
   ConcurrentTaskReporter,
   IConcurrencyPresentationService,
-} from '@gits/core'
+} from '@usegit/core'
 import { Listr } from 'listr2'
 import type { ListrTask } from 'listr2'
 

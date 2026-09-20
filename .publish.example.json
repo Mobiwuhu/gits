@@ -5,8 +5,8 @@
     "registry": "https://registry.example.com/"
   },
   "npm": {
-    "cliPackageName": "@your-scope/gits",
-    "corePackageName": "@your-scope/gits-core",
+    "cliPackageName": "@usegit/cli",
+    "corePackageName": "@usegit/core",
     "registry": "https://registry.npmjs.org/"
   }
 }

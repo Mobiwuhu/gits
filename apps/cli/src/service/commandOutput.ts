@@ -1,5 +1,5 @@
-import { RepositoryFlag, RepositoryState } from '@gits/core'
-import type { RepositoryCommandResult } from '@gits/core'
+import { RepositoryFlag, RepositoryState } from '@usegit/core'
+import type { RepositoryCommandResult } from '@usegit/core'
 
 import type { CommandPresentation } from '../contract/index'
 import { formatCliTable } from './cliTable'

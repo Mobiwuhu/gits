@@ -1,4 +1,4 @@
-import { GitsError, ITaskRootService, UsageError } from '@gits/core'
+import { GitsError, ITaskRootService, UsageError } from '@usegit/core'
 import { Inject } from '@wendellhu/redi'
 
 import type { CliContext, ICliRuntimeService } from '../contract/index'

@@ -1,4 +1,4 @@
-import { IFetchTaskService } from '@gits/core'
+import { IFetchTaskService } from '@usegit/core'
 import { Inject } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 

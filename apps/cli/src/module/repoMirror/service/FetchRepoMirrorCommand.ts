@@ -1,4 +1,7 @@
-import { IFetchRepoMirrorService, RepoMirrorInvocationSource } from '@gits/core'
+import {
+  IFetchRepoMirrorService,
+  RepoMirrorInvocationSource,
+} from '@usegit/core'
 import { Inject } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 

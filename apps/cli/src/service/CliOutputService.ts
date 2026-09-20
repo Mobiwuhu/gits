@@ -1,9 +1,9 @@
-import { GitsError } from '@gits/core'
+import { GitsError } from '@usegit/core'
 import type {
   CommandOutput,
   GitsUninstallOutput,
   RepoMirrorCommandOutput,
-} from '@gits/core'
+} from '@usegit/core'
 import { Inject } from '@wendellhu/redi'
 
 import {

@@ -12,7 +12,12 @@ export default defineConfig({
   entry: ['src/index.ts'],
   fixedExtension: false,
   format: ['esm'],
-  inputOptions: { resolve: { mainFields: ['module', 'main'] } },
+  inputOptions: {
+    resolve: {
+      conditionNames: ['@usegit/source', 'import', 'node', 'default'],
+      mainFields: ['module', 'main'],
+    },
+  },
   outputOptions: { codeSplitting: false },
   platform: 'node',
   sourcemap: false,

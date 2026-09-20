@@ -1,4 +1,4 @@
-import { IDoctorRepoMirrorService } from '@gits/core'
+import { IDoctorRepoMirrorService } from '@usegit/core'
 import { Inject } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 

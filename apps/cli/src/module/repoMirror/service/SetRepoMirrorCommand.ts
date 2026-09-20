@@ -1,4 +1,4 @@
-import { ISetRepoMirrorService } from '@gits/core'
+import { ISetRepoMirrorService } from '@usegit/core'
 import { Inject } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 

@@ -1,4 +1,4 @@
-import { IRemoveRepoMirrorService } from '@gits/core'
+import { IRemoveRepoMirrorService } from '@usegit/core'
 import { Inject } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 

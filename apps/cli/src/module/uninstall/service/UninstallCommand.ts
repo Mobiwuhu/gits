@@ -1,4 +1,4 @@
-import { IUninstallService } from '@gits/core'
+import { IUninstallService } from '@usegit/core'
 import { Inject } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 
