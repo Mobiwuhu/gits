@@ -31,7 +31,7 @@
     "prepare": "node --import=tsx scripts/installGitHooks.ts",
     "publish:npm": "pnpm check && node --import=tsx scripts/publishPackages.ts",
     "publish:npm:check": "pnpm check",
-    "release": "node --import=tsx scripts/runRelizy.ts",
+    "release": "pnpm check && node --import=tsx scripts/runRelizy.ts",
     "release:check": "node --import=tsx scripts/runRelizy.ts --patch --dry-run --no-publish --no-provider-release --no-push --no-commit --yes",
     "test": "TSX_TSCONFIG_PATH=tsconfig.base.json node --import=tsx --conditions=@usegits/source --test apps/cli/src/service/CliApplication.integration.test.ts apps/cli/src/module/repoMirror/service/RepoMirrorCommand.integration.test.ts packages/core/src/service/ConcurrencyService.test.ts packages/core/src/service/gitUrl.test.ts packages/core/src/module/task/service/TaskConfigurationService.test.ts packages/core/src/module/taskTemplate/service/TaskTemplateServices.test.ts packages/core/src/module/repoMirror/service/RepoMirrorLoggerService.test.ts packages/core/src/module/repoMirror/service/RepoMirrorSchedulerService.test.ts packages/core/src/module/repoMirror/service/RepoMirrorStoreService.test.ts packages/core/src/module/uninstall/service/GitsPersistenceService.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && pnpm --recursive --if-present run typecheck"

@@ -60,7 +60,7 @@ Relizy manages unified versions, changelogs, Git tags, and GitHub Releases, so t
 For a normal release, manually run the **Release** workflow from GitHub Actions and choose `patch`, `minor`, or `major`. The commands below are only for local validation, recovery, or debugging:
 
 ```sh
-pnpm release:check           # preview the version release
+pnpm release:check           # preview Relizy without rerunning pnpm check
 pnpm publish:npm:check       # build, verify, and dry-run the public packages
 pnpm publish:npm             # manually publish only for recovery or debugging
 ```

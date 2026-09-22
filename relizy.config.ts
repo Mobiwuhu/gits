@@ -4,9 +4,6 @@ export default defineConfig({
   changelog: {
     formatCmd: 'pnpm format',
   },
-  hooks: {
-    'before:release': 'pnpm check',
-  },
   monorepo: {
     includePrivates: true,
     packages: ['.', 'apps/*', 'packages/*'],

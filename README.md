@@ -60,7 +60,7 @@ Relizy 负责 unified 版本、Changelog、Git 标签与 GitHub Release，根包
 正常发布应在 GitHub Actions 页面手动运行 **Release** workflow，并选择 `patch`、`minor` 或 `major`。以下命令只用于本地预检、恢复或调试：
 
 ```sh
-pnpm release:check           # 预演版本发布
+pnpm release:check           # 仅预演 Relizy，不重复执行 pnpm check
 pnpm publish:npm:check       # 构建、验收并 dry-run 公共 npm 包
 pnpm publish:npm             # 仅在恢复或调试时手动发布公共 npm 包
 ```
