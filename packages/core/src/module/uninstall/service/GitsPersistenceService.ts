@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { lstat, readFile, readdir, rm } from 'node:fs/promises'
+import { readFile, readdir, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, parse as parsePath, relative, resolve } from 'node:path'
 
@@ -30,6 +30,11 @@ import {
   resolveSystemdTimerEnablementDirectory,
   resolveSystemdUserUnitDirectory,
 } from '../../../service/index'
+import {
+  errorMessage,
+  hasErrorCode,
+  pathEntryExists,
+} from '../../../util/index'
 
 export interface GitsPersistenceServiceOptions {
   readonly environment?: NodeJS.ProcessEnv
@@ -104,7 +109,7 @@ export class GitsPersistenceService implements IGitsPersistenceService {
     if (this.#platform === 'linux') {
       warnings.push(...(await this.reloadSystemdJobs(systemdTimers)))
     }
-    const dataRootExists = await pathExists(this.paths.home)
+    const dataRootExists = await pathEntryExists(this.paths.home)
     if (dataRootExists) {
       await rm(this.paths.home, { force: true, recursive: true })
     }
@@ -118,14 +123,14 @@ export class GitsPersistenceService implements IGitsPersistenceService {
   }
 
   private async inspectHome(): Promise<readonly GitsPersistenceTarget[]> {
-    const dataRootExists = await pathExists(this.paths.home)
+    const dataRootExists = await pathEntryExists(this.paths.home)
     const registered = await Promise.all(
       gitsHomePersistenceKeys.map(
         async (id): Promise<GitsPersistenceTarget> => {
           const entry = gitsHomePersistenceRegistry[id]
           return {
             description: entry.description,
-            exists: await pathExists(this.paths[id]),
+            exists: await pathEntryExists(this.paths[id]),
             id,
             kind: entry.kind,
             path: this.paths[id],
@@ -142,7 +147,7 @@ export class GitsPersistenceService implements IGitsPersistenceService {
             const path = resolve(this.paths[artifact.parent], artifact.fileName)
             return {
               description: artifact.description,
-              exists: await pathExists(path),
+              exists: await pathEntryExists(path),
               id,
               kind: GitsPersistenceTargetKind.File,
               path,
@@ -175,7 +180,7 @@ export class GitsPersistenceService implements IGitsPersistenceService {
     try {
       entries = await readdir(this.paths.home)
     } catch (error) {
-      if (hasCode(error, 'ENOENT')) {
+      if (hasErrorCode(error, 'ENOENT')) {
         return []
       }
       throw error
@@ -362,7 +367,7 @@ export class GitsPersistenceService implements IGitsPersistenceService {
   }
 
   private async assertSafeDataRoot(): Promise<void> {
-    if (!(await pathExists(this.paths.home))) {
+    if (!(await pathEntryExists(this.paths.home))) {
       return
     }
     const { root } = parsePath(this.paths.home)
@@ -482,7 +487,7 @@ async function matchingEntries(
         suffixes.some((suffix) => entry.endsWith(suffix))
     )
   } catch (error) {
-    if (hasCode(error, 'ENOENT')) {
+    if (hasErrorCode(error, 'ENOENT')) {
       return []
     }
     throw error
@@ -493,20 +498,8 @@ async function readOptional(path: string): Promise<string | null> {
   try {
     return await readFile(path, 'utf-8')
   } catch (error) {
-    if (hasCode(error, 'ENOENT')) {
+    if (hasErrorCode(error, 'ENOENT')) {
       return null
-    }
-    throw error
-  }
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await lstat(path)
-    return true
-  } catch (error) {
-    if (hasCode(error, 'ENOENT')) {
-      return false
     }
     throw error
   }
@@ -535,17 +528,4 @@ function escapeSystemdValue(value: string): string {
     .replaceAll('%', '%%')
     .replaceAll('\\', '\\\\')
     .replaceAll('"', '\\"')
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-function hasCode(error: unknown, code: string): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === code
-  )
 }

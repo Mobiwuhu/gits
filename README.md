@@ -152,12 +152,36 @@ pnpm dev -- -C /tmp/gits-demo status
 若已有一个任务目录，可直接复用其中的任务上下文：
 
 ```sh
-mkdir -p /tmp/gits-demo-copy
-pnpm dev -- -C /tmp/gits-demo-copy init \
-  --scan ~/tasks/task-example
+pnpm dev -- -C /tmp init gits-demo-copy \
+  --from ~/tasks/task-example
 ```
 
-`--scan` 会原样递归复制源任务目录中的所有文件和目录，但完全跳过源 `repos/`；仓库工作区由目标任务根据导入的 `task.config.jsonc` 自行安装。它不会递归寻找其他任务配置、访问远程或修改源目录。
+`--from` 会按源目录实际生效的 `.gitignore` 导入内容，完全跳过源顶层 `repos/`，再用当前 Scaffdog default 补齐目标中缺失的骨架。源根部必须有一份有效且未被忽略的 `task.config.jsonc`。该操作不访问远程、不执行源脚本，也不修改源目录。
+
+### 可复用任务模板
+
+经常重复使用同一套任务骨架时，可以把完整目录保存为机器级命名模板：
+
+```sh
+gits init ./template-seed
+# 按需修改 template-seed 中的配置、说明和其他文件
+gits template add fullstack ./template-seed
+gits template list
+gits init ./payment-refactor --template fullstack
+```
+
+模板是独立快照，默认保存到 `${GITS_HOME}/templates/`（通常为 `~/.gits/templates/`）；保存后不再依赖源目录。`template add` 和 `template update` 只接受包含当前完整 Scaffdog 骨架的目录，并遵守根级、嵌套和适用父级 `.gitignore`，包括 `!` 否定规则。顶层 `repos/AGENTS.md` 会保留，实际仓库工作区、任何 `.git` 和事务临时文件不会进入快照。固定排除项和 `.gitignore` 之外的内容会原样保存，这不是秘密扫描。
+
+模板生命周期命令为：
+
+```sh
+gits template update fullstack ./template-seed
+gits template rename fullstack team-default
+gits template remove team-default --yes          # 移入 trash
+gits template remove team-default --purge --yes  # 永久删除
+```
+
+内置 `default` 模板始终可列出和使用，但不能更新、重命名或删除。模板名与新任务目录名彼此独立；使用已保存模板时不会再次应用快照中的 `.gitignore`。
 
 ### 只检出仓库中的部分目录
 
@@ -197,7 +221,12 @@ gits install backend-aio
 ## 命令
 
 ```sh
-gits init [--scan <source-task-dir>]
+gits init [directory] [--template <name> | --from <source-task-dir>] [--dry-run]
+gits template add <name> <source-directory> [--dry-run]
+gits template list [--wide]
+gits template update <name> <source-directory> [--dry-run]
+gits template rename <name> <new-name>
+gits template remove <name> [--purge] [--yes]
 gits install [-j <jobs>] [repo...]
 gits status [repo...]
 gits fetch [-j <jobs>] [repo...]
@@ -221,7 +250,7 @@ gits uninstall [--dry-run] [--detach-dependents | --force] [--yes]
 gits -C tasks/task-template-import status --json
 ```
 
-任务命令的 `--json` 返回稳定的 `{ command, ok, repos }` 结构，mirror 命令返回 `{ command, ok, mirrors }`。Incur 还提供命令 schema、shell 补全、`--llms`、MCP 和后续操作建议（CTA）。
+任务命令的 `--json` 返回稳定的 `{ command, ok, repos }` 结构，`init` 另带模板来源摘要；template 命令返回 `{ command, ok, templates }`，mirror 命令返回 `{ command, ok, mirrors }`。Incur 还提供命令 schema、shell 补全、`--llms`、MCP 和后续操作建议（CTA）。
 
 ## Uninstall
 
@@ -231,7 +260,7 @@ gits -C tasks/task-template-import status --json
 gits uninstall --dry-run
 ```
 
-确认后，卸载会停止并删除属于当前 `GITS_HOME` 的 LaunchAgent/systemd user timer（包括 Linux timer enablement symlink），永久删除 mirrors、配置、状态、日志、锁、临时文件和 trash，最后删除 `GITS_HOME` 本身：
+确认后，卸载会停止并删除属于当前 `GITS_HOME` 的 LaunchAgent/systemd user timer（包括 Linux timer enablement symlink），永久删除 templates、mirrors、配置、状态、日志、锁、临时文件和 trash，最后删除 `GITS_HOME` 本身：
 
 ```sh
 gits uninstall --yes
@@ -264,6 +293,7 @@ gits install
 ```text
 ~/.gits/
 ├── config.jsonc
+├── templates/<name>/{manifest.json,content/}
 ├── repo-mirrors/<name>.git/
 ├── state/repo-mirror-dependencies/<name>.json
 ├── logs/repo-mirrors/<name>/*.jsonl
@@ -334,7 +364,8 @@ gits repo-mirrors remove api --purge --yes               # 不进 trash，永久
 
 - `init` 可重复执行，只补齐缺失的脚手架，不覆盖已有内容。
 - 配置中的 `<...>` 占位值会阻止 `install`、`status`、`fetch`、`switch` 和 `push` 执行。
-- `init --scan <source-task-dir>` 读取源目录根的 `task.config.jsonc`，并递归导入除 `repos/` 外的全部任务内容。它不递归寻找其他任务配置，不访问远程，也不会读取或修改源目录中的 Git 仓库。
+- `init <directory> --from <source-task-dir>` 按 `.gitignore` 导入除顶层 `repos/` 外的源内容，并在同一事务中补齐缺失的默认骨架；它不访问远程或修改源目录。
+- `template add/update` 要求源目录已经包含完整默认骨架；命名模板是机器级独立快照，实例、模板和原始源目录之间没有持续关联。
 - 导入只会替换目标目录中由脚手架生成的默认内容；目标已有自定义内容时直接失败，避免覆盖用户文件。
 - `install` 先在工具临时目录 clone，局部检出与分支准备完成后才原子移动到目标目录；对已有仓库只会安全对齐 `checkout`，不会借机修改其他 Git 状态。
 - `install` 会透明尝试匹配健康 repo mirror；配置、镜像或锁异常时无损回退普通 clone。
@@ -351,7 +382,7 @@ gits repo-mirrors remove api --purge --yes               # 不进 trash，永久
 apps/cli/src/
 ├── contract/        # CLI 类型、常量和可注入接口
 ├── service/         # CLI 启动、交互、错误、输出与进度 Service
-├── module/          # Task、RepoMirror、Uninstall Command 类
+├── module/          # Task、TaskTemplate、RepoMirror、Uninstall Command 类
 ├── bootstrap/       # 唯一 Injector 组合根
 ├── dependencies.ts  # CLI 默认绑定
 └── index.ts         # 进程入口
@@ -359,7 +390,7 @@ apps/cli/src/
 packages/core/src/
 ├── contract/        # 跨包类型和所有注入接口/Identifier
 ├── service/         # Git、文件、进程、并发等基础 Service
-├── module/          # Task、RepoMirror、Uninstall 业务 Service
+├── module/          # Task、TaskTemplate、RepoMirror、Uninstall 业务 Service
 ├── dependencies.ts  # Core 默认绑定
 └── index.ts         # Core 对 CLI 的公开面
 ```
@@ -376,7 +407,7 @@ Core 包使用单一的条件导出映射：显式启用 `@usegits/source` 时�
 pnpm check
 ```
 
-该命令会执行格式检查、lint、类型检查、架构依赖门禁、测试和构建。CLI 集成测试使用隔离的本地 bare Git remote，覆盖脚手架、`-C`、模板导入、配置占位符、安装、状态、push 和 `switch --stash`；并发测试覆盖 Listr2 展示开启时的并发上限、稳定结果顺序、独立失败和中断语义。
+该命令会执行格式检查、lint、类型检查、架构依赖门禁、测试和构建。CLI 集成测试使用隔离的本地 bare Git remote，覆盖脚手架、`-C`、一次性目录导入、命名模板生命周期、配置占位符、安装、状态、push 和 `switch --stash`；并发测试覆盖 Listr2 展示开启时的并发上限、稳定结果顺序、独立失败和中断语义。
 
 ## 作者与许可证
 

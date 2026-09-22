@@ -18,6 +18,7 @@ import type {
   RepoMirrorHealth,
 } from '../../../contract/index'
 import { compareGitUrls } from '../../../service/gitUrl'
+import { hasErrorCode } from '../../../util/index'
 
 const mirrorFetchRefspec = '+refs/*:refs/*'
 
@@ -100,7 +101,7 @@ export class RepoMirrorGitService implements IRepoMirrorGitService {
         return invalidHealth('Mirror path is not a directory.')
       }
     } catch (error) {
-      return hasCode(error, 'ENOENT')
+      return hasErrorCode(error, 'ENOENT')
         ? {
             issues: ['Mirror directory does not exist.'],
             state: RepoMirrorRepositoryState.Missing,
@@ -139,7 +140,7 @@ export class RepoMirrorGitService implements IRepoMirrorGitService {
         issues.push('Managed mirror must not borrow objects via alternates.')
       }
     } catch (error) {
-      if (!hasCode(error, 'ENOENT')) {
+      if (!hasErrorCode(error, 'ENOENT')) {
         issues.push(
           `Cannot inspect mirror alternates: ${error instanceof Error ? error.message : String(error)}`
         )
@@ -286,13 +287,4 @@ function invalidHealth(issue: string): RepoMirrorHealth {
 function nonEmpty(value: string): string | null {
   const trimmed = value.trim()
   return trimmed.length === 0 ? null : trimmed
-}
-
-function hasCode(error: unknown, code: string): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === code
-  )
 }

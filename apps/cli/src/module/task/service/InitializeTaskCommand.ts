@@ -1,13 +1,15 @@
+import { resolve } from 'node:path'
+
 import { IInitializeTaskService } from '@usegits/core'
 import { Inject } from '@wendellhu/redi'
-import { Cli, z } from 'incur'
+import { z } from 'incur'
 
-import { ICliOutputService, ICliRuntimeService } from '../../../contract/index'
-import type {
-  CliContext,
-  CliInstance,
-  ICliCommand,
+import {
+  ICliOutputService,
+  ICliRuntimeService,
+  initializeTaskOutputSchema,
 } from '../../../contract/index'
+import type { CliInstance, ICliCommand } from '../../../contract/index'
 
 export class InitializeTaskCommand implements ICliCommand {
   constructor(
@@ -18,40 +20,62 @@ export class InitializeTaskCommand implements ICliCommand {
   ) {}
 
   register(cli: CliInstance): void {
-    cli.command(
-      'init',
-      Cli.command({
-        description: 'Create or complete a task branch set workspace.',
-        options: z.object({
-          scan: z
+    cli.command('init', {
+      args: z.object({
+        directory: z
+          .string()
+          .optional()
+          .describe('Task directory to create or complete'),
+      }),
+      description: 'Create or complete a task branch set workspace.',
+      output: initializeTaskOutputSchema,
+      options: z
+        .object({
+          dryRun: z
+            .boolean()
+            .default(false)
+            .describe('Preview without changing the target directory'),
+          from: z
             .string()
             .optional()
-            .describe('Source task directory; imports everything except repos'),
-        }),
-        run: async (rawContext) => {
-          const context = rawContext as CliContext & {
-            readonly options: { readonly scan?: string }
+            .describe('Import once from an existing task directory'),
+          template: z
+            .string()
+            .optional()
+            .describe('Create from a named machine-local template'),
+        })
+        .refine(
+          ({ from, template }) => from === undefined || template === undefined,
+          {
+            message: '--template and --from cannot be combined.',
           }
-          return this.output.runCommand(
-            context,
-            'init',
-            async (signal) =>
-              this.service.execute({
-                root: await this.runtime.commandRoot(context),
-                signal,
-                ...(context.options.scan === undefined
-                  ? {}
-                  : { scanPath: context.options.scan }),
-              }),
-            [
-              {
-                command: 'install',
-                description: 'Prepare configured repositories',
-              },
-            ]
-          )
-        },
-      })
-    )
+        ),
+      run: async (context) => {
+        return this.output.runCommand(
+          context,
+          'init',
+          async (signal) => {
+            const base = await this.runtime.commandRoot(context)
+            return this.service.execute({
+              dryRun: context.options.dryRun,
+              root: resolve(base, context.args.directory ?? '.'),
+              signal,
+              ...(context.options.from === undefined
+                ? {}
+                : { fromPath: resolve(base, context.options.from) }),
+              ...(context.options.template === undefined
+                ? {}
+                : { template: context.options.template }),
+            })
+          },
+          [
+            {
+              command: 'install',
+              description: 'Prepare configured repositories',
+            },
+          ]
+        )
+      },
+    })
   }
 }

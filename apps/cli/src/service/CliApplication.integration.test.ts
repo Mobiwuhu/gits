@@ -4,6 +4,7 @@ import {
   access,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   writeFile,
@@ -53,6 +54,28 @@ interface JsonCommandOutput {
     readonly result: string
     readonly state: string | null
   }[]
+  readonly template?: {
+    readonly kind: string
+    readonly name: string | null
+    readonly source: string | null
+    readonly target: string
+  }
+}
+
+interface JsonTaskTemplateOutput {
+  readonly command: string
+  readonly ok: boolean
+  readonly selection?: {
+    readonly capturedEntryCount: number
+    readonly policy: string
+  }
+  readonly templates: readonly {
+    readonly action: string
+    readonly name: string
+    readonly path: string | null
+    readonly state: string
+  }[]
+  readonly warnings?: readonly string[]
 }
 
 void describe('gits CLI', () => {
@@ -341,8 +364,8 @@ void describe('gits CLI', () => {
     }
   })
 
-  void it('imports every source task entry except repos without modifying the source task', async () => {
-    const root = await mkdtemp(resolve(tmpdir(), 'gits-scan-test-'))
+  void it('imports a partial source with --from, respects .gitignore, and completes the target scaffold', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'gits-from-test-'))
     const source = resolve(root, 'source-task')
     const target = resolve(root, 'target-task')
     const sourceConfig = [
@@ -366,9 +389,7 @@ void describe('gits CLI', () => {
     ].join('\n')
     const copiedFiles = [
       ['AGENTS.md', 'task instructions\n'],
-      ['docs/AGENTS.md', 'documentation instructions\n'],
       ['docs/source-only.md', 'ordinary documentation\n'],
-      ['scripts/AGENTS.md', 'script instructions\n'],
       ['scripts/bootstrap.sh', '#!/bin/sh\necho bootstrap\n'],
       ['scripts/nested/check.sh', '#!/bin/sh\necho check\n'],
       ['.agents/skills/shared/SKILL.md', 'shared skill\n'],
@@ -376,11 +397,17 @@ void describe('gits CLI', () => {
       ['.workspace/settings.json', '{"theme":"dark"}\n'],
       ['justfile', 'dev:\n    pnpm dev\n'],
       ['processCompose.yaml', 'version: "0.5"\n'],
+      ['keep.txt', 'kept by negation\n'],
     ] as const
 
     try {
       await mkdir(source)
       await writeFile(resolve(source, 'task.config.jsonc'), sourceConfig)
+      await writeFile(
+        resolve(source, '.gitignore'),
+        ['ignored.txt', '*.txt', '!keep.txt', ''].join('\n')
+      )
+      await writeFile(resolve(source, 'ignored.txt'), 'do not import\n')
       for (const [path, content] of copiedFiles) {
         await mkdir(resolve(source, path, '..'), { recursive: true })
         await writeFile(resolve(source, path), content)
@@ -401,16 +428,17 @@ void describe('gits CLI', () => {
         'ref: refs/heads/main\n'
       )
 
-      await mkdir(target)
       const imported = await gits([
         '-C',
-        target,
+        root,
         'init',
-        '--scan',
-        '../source-task',
+        'target-task',
+        '--from',
+        'source-task',
         '--json',
       ])
       assert.equal(imported.code, 0)
+      assert.equal(parseOutput(imported).template?.kind, 'directory')
       assert.deepEqual(
         parseOutput(imported).repos.map((repository) => repository.name),
         ['frontend', 'backend-ipd']
@@ -422,8 +450,17 @@ void describe('gits CLI', () => {
       for (const [path, content] of copiedFiles) {
         assert.equal(await readFile(resolve(target, path), 'utf-8'), content)
       }
+      await assert.rejects(async () => access(resolve(target, 'ignored.txt')))
       await assert.rejects(async () =>
         access(resolve(target, 'repos/frontend'))
+      )
+      assert.match(
+        await readFile(resolve(target, 'docs/AGENTS.md'), 'utf-8'),
+        /任务范围内的知识/u
+      )
+      assert.match(
+        await readFile(resolve(target, 'scripts/AGENTS.md'), 'utf-8'),
+        /可复用自动化脚本/u
       )
       assert.match(
         await readFile(resolve(target, 'repos/AGENTS.md'), 'utf-8'),
@@ -441,13 +478,227 @@ void describe('gits CLI', () => {
       await rm(root, { force: true, recursive: true })
     }
   })
+
+  void it('manages reusable templates through add, list, init, update, rename, and remove', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'gits-template-test-'))
+    const gitsHome = resolve(root, 'gits-home')
+    const environment = { GITS_HOME: gitsHome }
+    const seed = resolve(root, 'seed')
+    const first = resolve(root, 'first-task')
+    const updateSource = resolve(root, 'update-source')
+    const second = resolve(root, 'second-task')
+
+    try {
+      const initialized = await gits(
+        ['-C', root, 'init', 'seed', '--json'],
+        environment
+      )
+      assert.equal(initialized.code, 0, initialized.stderr)
+      await writeFile(resolve(seed, 'AGENTS.md'), 'fullstack v1\n')
+      await writeFile(
+        resolve(seed, '.gitignore'),
+        ['secret.txt', 'nested/*', '!nested/keep.txt', ''].join('\n')
+      )
+      await writeFile(resolve(seed, 'secret.txt'), 'never snapshot\n')
+      await mkdir(resolve(seed, 'nested'), { recursive: true })
+      await writeFile(resolve(seed, 'nested/drop.txt'), 'drop\n')
+      await writeFile(resolve(seed, 'nested/keep.txt'), 'keep\n')
+      await mkdir(resolve(seed, 'repos/application/.git'), { recursive: true })
+      await writeFile(
+        resolve(seed, 'repos/application/package.json'),
+        '{"name":"application"}\n'
+      )
+
+      const preview = await gits(
+        [
+          '-C',
+          root,
+          'template',
+          'add',
+          'preview',
+          'seed',
+          '--dry-run',
+          '--json',
+        ],
+        environment
+      )
+      assert.equal(preview.code, 0, preview.stderr)
+      assert.equal(parseTemplateOutput(preview).templates[0]?.state, 'planned')
+      await assert.rejects(async () =>
+        access(resolve(gitsHome, 'templates/preview'))
+      )
+
+      const added = await gits(
+        ['-C', root, 'template', 'add', 'fullstack', 'seed', '--json'],
+        environment
+      )
+      assert.equal(added.code, 0, added.stderr)
+      assert.equal(parseTemplateOutput(added).selection?.policy, 'gitignore-v1')
+      await access(resolve(gitsHome, 'templates/fullstack/manifest.json'))
+      await access(
+        resolve(gitsHome, 'templates/fullstack/content/nested/keep.txt')
+      )
+      await assert.rejects(async () =>
+        access(resolve(gitsHome, 'templates/fullstack/content/secret.txt'))
+      )
+      await assert.rejects(async () =>
+        access(
+          resolve(gitsHome, 'templates/fullstack/content/repos/application')
+        )
+      )
+
+      const listed = await gits(
+        ['template', 'list', '--wide', '--json'],
+        environment
+      )
+      assert.equal(listed.code, 0, listed.stderr)
+      assert.deepEqual(
+        parseTemplateOutput(listed).templates.map((template) => template.name),
+        ['default', 'fullstack']
+      )
+
+      await rm(seed, { force: true, recursive: true })
+      const created = await gits(
+        ['-C', root, 'init', 'first-task', '--template', 'fullstack', '--json'],
+        environment
+      )
+      assert.equal(created.code, 0, created.stderr)
+      assert.equal(parseOutput(created).template?.name, 'fullstack')
+      assert.equal(
+        await readFile(resolve(first, 'AGENTS.md'), 'utf-8'),
+        'fullstack v1\n'
+      )
+      assert.equal(
+        await readFile(resolve(first, 'nested/keep.txt'), 'utf-8'),
+        'keep\n'
+      )
+      await assert.rejects(async () =>
+        access(resolve(first, 'nested/drop.txt'))
+      )
+
+      const createdUpdateSource = await gits(
+        [
+          '-C',
+          root,
+          'init',
+          'update-source',
+          '--template',
+          'fullstack',
+          '--json',
+        ],
+        environment
+      )
+      assert.equal(createdUpdateSource.code, 0, createdUpdateSource.stderr)
+      await writeFile(resolve(updateSource, 'AGENTS.md'), 'fullstack v2\n')
+      const updated = await gits(
+        [
+          '-C',
+          root,
+          'template',
+          'update',
+          'fullstack',
+          'update-source',
+          '--json',
+        ],
+        environment
+      )
+      assert.equal(updated.code, 0, updated.stderr)
+      const createdAfterUpdate = await gits(
+        [
+          '-C',
+          root,
+          'init',
+          'second-task',
+          '--template',
+          'fullstack',
+          '--json',
+        ],
+        environment
+      )
+      assert.equal(createdAfterUpdate.code, 0, createdAfterUpdate.stderr)
+      assert.equal(
+        await readFile(resolve(first, 'AGENTS.md'), 'utf-8'),
+        'fullstack v1\n'
+      )
+      assert.equal(
+        await readFile(resolve(second, 'AGENTS.md'), 'utf-8'),
+        'fullstack v2\n'
+      )
+
+      const renamed = await gits(
+        ['template', 'rename', 'fullstack', 'team-default', '--json'],
+        environment
+      )
+      assert.equal(renamed.code, 0, renamed.stderr)
+      const oldName = await gits(
+        [
+          '-C',
+          root,
+          'init',
+          'old-name-task',
+          '--template',
+          'fullstack',
+          '--json',
+        ],
+        environment
+      )
+      assert.equal(oldName.code, 2)
+      const newName = await gits(
+        [
+          '-C',
+          root,
+          'init',
+          'renamed-task',
+          '--template',
+          'team-default',
+          '--json',
+        ],
+        environment
+      )
+      assert.equal(newName.code, 0, newName.stderr)
+
+      const removed = await gits(
+        ['template', 'remove', 'team-default', '--yes', '--json'],
+        environment
+      )
+      assert.equal(removed.code, 0, removed.stderr)
+      assert.equal(parseTemplateOutput(removed).templates[0]?.state, 'removed')
+      await assert.rejects(async () =>
+        access(resolve(gitsHome, 'templates/team-default'))
+      )
+      assert.equal(
+        (await readdir(resolve(gitsHome, 'trash/templates'))).some((name) =>
+          name.endsWith('-team-default')
+        ),
+        true
+      )
+
+      const readded = await gits(
+        ['-C', root, 'template', 'add', 'ephemeral', 'second-task', '--json'],
+        environment
+      )
+      assert.equal(readded.code, 0, readded.stderr)
+      const purged = await gits(
+        ['template', 'remove', 'ephemeral', '--purge', '--yes', '--json'],
+        environment
+      )
+      assert.equal(purged.code, 0, purged.stderr)
+      assert.equal(parseTemplateOutput(purged).templates[0]?.path, null)
+    } finally {
+      await rm(root, { force: true, recursive: true })
+    }
+  })
 })
 
-async function gits(args: readonly string[]): Promise<CommandResponse> {
+async function gits(
+  args: readonly string[],
+  environment: NodeJS.ProcessEnv = {}
+): Promise<CommandResponse> {
   return run(
     process.execPath,
     ['--import=tsx', '--conditions=@usegits/source', cliEntry, ...args],
-    repositoryRoot
+    repositoryRoot,
+    environment
   )
 }
 
@@ -461,12 +712,14 @@ async function git(
 async function run(
   command: string,
   args: readonly string[],
-  cwd: string
+  cwd: string,
+  environment: NodeJS.ProcessEnv = {}
 ): Promise<CommandResponse> {
   try {
     const response = await executeFile(command, args, {
       cwd,
       encoding: 'utf-8',
+      env: { ...process.env, ...environment },
     })
     return {
       code: 0,
@@ -526,6 +779,18 @@ async function writeTaskConfiguration(
 
 function parseOutput(response: CommandResponse): JsonCommandOutput {
   const output = JSON.parse(response.stdout) as JsonCommandOutput
-  assert.deepEqual(Object.keys(output).toSorted(), ['command', 'ok', 'repos'])
+  assert.equal(typeof output.command, 'string')
+  assert.equal(typeof output.ok, 'boolean')
+  assert.equal(Array.isArray(output.repos), true)
+  return output
+}
+
+function parseTemplateOutput(
+  response: CommandResponse
+): JsonTaskTemplateOutput {
+  const output = JSON.parse(response.stdout) as JsonTaskTemplateOutput
+  assert.equal(output.command.startsWith('template '), true)
+  assert.equal(typeof output.ok, 'boolean')
+  assert.equal(Array.isArray(output.templates), true)
   return output
 }

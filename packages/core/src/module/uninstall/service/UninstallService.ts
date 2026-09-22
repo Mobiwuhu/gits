@@ -17,6 +17,7 @@ import type {
   RepoMirrorDefinition,
   UninstallGitsInput,
 } from '../../../contract/index'
+import { errorMessage } from '../../../util/index'
 
 export class UninstallService implements IUninstallService {
   constructor(
@@ -203,8 +204,4 @@ export class UninstallService implements IUninstallService {
       warnings: [...plan.warnings, ...purged.warnings],
     }
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

@@ -7,9 +7,7 @@ import {
   ITaskConfigurationService,
   RepositoryActionResult,
   RepositoryState,
-  reportProgress,
   UsageError,
-  initialRepositoryResult,
 } from '../../../contract/index'
 import type {
   IPushTaskService,
@@ -20,9 +18,12 @@ import type {
   RepositoryCommandResult,
   TaskRepository,
 } from '../../../contract/index'
+import { initialRepositoryResult } from '../../../service/repositoryResult'
+import { signalOptions } from '../../../util/index'
 import { gitCommandError, isGitCommandSuccessful } from './gitResult'
 import { loadTaskConfiguration } from './loadTaskConfiguration'
 import { repositoryTaskPresentation } from './taskPresentation'
+import { reportProgress } from './taskProgress'
 import { commandError, withActionResult, withCommandError } from './taskResult'
 import { selectRepositories } from './taskSelection'
 
@@ -51,7 +52,7 @@ export class PushTaskService implements IPushTaskService {
     const inspected = await Promise.all(
       repositories.map(async (repository) => ({
         repository,
-        result: await this.git.inspect(repository, withSignal(input.signal)),
+        result: await this.git.inspect(repository, signalOptions(input.signal)),
       }))
     )
     const preconditions = inspected.map(({ repository, result }) => ({
@@ -206,7 +207,10 @@ export class PushTaskService implements IPushTaskService {
     input: PushTaskInput,
     task: ConcurrentTaskReporter
   ): Promise<RepositoryCommandResult> {
-    const before = await this.git.inspect(repository, withSignal(input.signal))
+    const before = await this.git.inspect(
+      repository,
+      signalOptions(input.signal)
+    )
     if (before.state === RepositoryState.SyncedLocal) {
       return withActionResult(before, RepositoryActionResult.Skipped)
     }
@@ -228,7 +232,10 @@ export class PushTaskService implements IPushTaskService {
       repository.branch,
       options
     )
-    const status = await this.git.inspect(repository, withSignal(input.signal))
+    const status = await this.git.inspect(
+      repository,
+      signalOptions(input.signal)
+    )
     return isGitCommandSuccessful(pushed)
       ? withActionResult(status, RepositoryActionResult.Success)
       : withCommandError(status, gitCommandError(pushed))
@@ -243,10 +250,4 @@ export class PushTaskService implements IPushTaskService {
     task.update(phase)
     reportProgress(input.onProgress, { phase, repository: repository.name })
   }
-}
-
-function withSignal(signal: AbortSignal | undefined): {
-  readonly signal?: AbortSignal
-} {
-  return signal ? { signal } : {}
 }

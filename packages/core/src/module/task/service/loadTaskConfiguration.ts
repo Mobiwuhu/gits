@@ -1,11 +1,11 @@
 import {
-  isRepositoryIncomplete,
   ConfigurationError,
   IncompleteConfigurationError,
 } from '../../../contract/index'
 import type {
   ITaskConfigurationService,
   TaskConfiguration,
+  TaskRepository,
 } from '../../../contract/index'
 
 export interface BranchNameValidator {
@@ -47,6 +47,16 @@ export async function loadTaskConfiguration(
     input.signal
   )
   return configuration
+}
+
+export function isRepositoryIncomplete(repository: TaskRepository): boolean {
+  return [
+    repository.url,
+    repository.branch,
+    repository.from,
+    repository.path,
+    ...(repository.checkout ?? []),
+  ].some((value) => /<[^>]+>/u.test(value))
 }
 
 async function validateBranchNames(

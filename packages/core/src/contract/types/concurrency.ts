@@ -1,14 +1,7 @@
-export enum ConcurrentRunStatus {
-  Fulfilled = 'fulfilled',
-  Rejected = 'rejected',
-  NotRun = 'not-run',
-}
-
-export enum ConcurrentTaskOutcomeStatus {
-  Completed = 'completed',
-  Failed = 'failed',
-  Skipped = 'skipped',
-}
+import type {
+  ConcurrentRunStatus,
+  ConcurrentTaskOutcomeStatus,
+} from '../constants/concurrency'
 
 export type ConcurrentRunResult<T, R> =
   | Readonly<{

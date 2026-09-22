@@ -30,6 +30,14 @@ for (const file of sourceFiles) {
     violations.push(`${display(file)}: default exports are forbidden`)
   }
   if (
+    /^export\s+enum\b/mu.test(content) &&
+    !file.includes(`${sep}contract${sep}constants${sep}`)
+  ) {
+    violations.push(
+      `${display(file)}: exported enums must live in contract/constants`
+    )
+  }
+  if (
     file.endsWith(`${sep}service${sep}index.ts`) &&
     /^export\s+\*/mu.test(content)
   ) {

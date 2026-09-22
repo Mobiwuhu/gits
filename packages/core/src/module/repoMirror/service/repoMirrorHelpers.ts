@@ -1,4 +1,4 @@
-import { mkdir, rename, stat } from 'node:fs/promises'
+import { mkdir, rename } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 import {
@@ -71,14 +71,6 @@ export function commandMessage(command: {
   return command.stderr.trim() || command.stdout.trim() || 'Git command failed.'
 }
 
-export function uniqueStrings(values: readonly string[]): string[] {
-  return [
-    ...new Set(
-      values.map((value) => value.trim()).filter((value) => value.length > 0)
-    ),
-  ]
-}
-
 export function asNonEmptyUrls(
   values: readonly string[]
 ): readonly [string, ...string[]] {
@@ -89,12 +81,6 @@ export function asNonEmptyUrls(
   return [first, ...values.slice(1)]
 }
 
-export function signalOptions(signal: AbortSignal | undefined): {
-  readonly signal?: AbortSignal
-} {
-  return signal === undefined ? {} : { signal }
-}
-
 export function validateJobs(jobs: number | undefined): void {
   if (
     jobs !== undefined &&
@@ -102,25 +88,4 @@ export function validateJobs(jobs: number | undefined): void {
   ) {
     throw new RepoMirrorUsageError('--jobs must be an integer from 1 to 32.')
   }
-}
-
-export async function pathExists(path: string): Promise<boolean> {
-  try {
-    await stat(path)
-    return true
-  } catch (error) {
-    if (hasCode(error, 'ENOENT')) {
-      return false
-    }
-    throw error
-  }
-}
-
-function hasCode(error: unknown, code: string): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === code
-  )
 }

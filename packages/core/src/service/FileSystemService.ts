@@ -3,6 +3,7 @@ import { chmod, mkdir, open, readdir, rename, rm, stat } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 
 import type { IFileSystemService } from '../contract/index'
+import { hasErrorCode } from '../util/index'
 
 export class FileSystemService implements IFileSystemService {
   async directorySize(path: string): Promise<number | null> {
@@ -12,7 +13,7 @@ export class FileSystemService implements IFileSystemService {
         return metadata.size
       }
     } catch (error) {
-      if (this.hasCode(error, 'ENOENT')) {
+      if (hasErrorCode(error, 'ENOENT')) {
         return null
       }
       throw error
@@ -63,14 +64,5 @@ export class FileSystemService implements IFileSystemService {
       await rm(temporary, { force: true })
       throw error
     }
-  }
-
-  private hasCode(error: unknown, code: string): boolean {
-    return (
-      typeof error === 'object' &&
-      error !== null &&
-      'code' in error &&
-      error.code === code
-    )
   }
 }

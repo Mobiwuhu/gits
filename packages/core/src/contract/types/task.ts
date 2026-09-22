@@ -19,13 +19,3 @@ export interface RawTaskConfiguration {
   readonly configuration: TaskConfiguration
   readonly content: string
 }
-
-export function isRepositoryIncomplete(repository: TaskRepository): boolean {
-  return [
-    repository.url,
-    repository.branch,
-    repository.from,
-    repository.path,
-    ...(repository.checkout ?? []),
-  ].some((value) => /<[^>]+>/u.test(value))
-}

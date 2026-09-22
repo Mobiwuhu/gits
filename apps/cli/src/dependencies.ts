@@ -9,8 +9,10 @@ import {
   ICliOutputService,
   ICliRuntimeService,
   IRepoMirrorSubcommand,
+  ITaskTemplateSubcommand,
 } from './contract/index'
 import {
+  AddTaskTemplateCommand,
   AddRepoMirrorCommand,
   DoctorRepoMirrorCommand,
   FetchRepoMirrorCommand,
@@ -20,13 +22,18 @@ import {
   InitializeTaskCommand,
   InstallTaskCommand,
   ListRepoMirrorCommand,
+  ListTaskTemplateCommand,
   PushTaskCommand,
   RemoveRepoMirrorCommand,
+  RemoveTaskTemplateCommand,
+  RenameTaskTemplateCommand,
   RepoMirrorCommand,
   SetRepoMirrorCommand,
   StatusTaskCommand,
   SwitchTaskCommand,
+  TaskTemplateCommand,
   UninstallCommand,
+  UpdateTaskTemplateCommand,
 } from './module/index'
 import {
   CliApplication,
@@ -52,6 +59,7 @@ export const cliDependencies: Dependency[] = [
   [ICliCommand, { useClass: SwitchTaskCommand }],
   [ICliCommand, { useClass: PushTaskCommand }],
   [ICliCommand, { useClass: RepoMirrorCommand }],
+  [ICliCommand, { useClass: TaskTemplateCommand }],
   [ICliCommand, { useClass: UninstallCommand }],
 
   [IRepoMirrorSubcommand, { useClass: AddRepoMirrorCommand }],
@@ -62,4 +70,10 @@ export const cliDependencies: Dependency[] = [
   [IRepoMirrorSubcommand, { useClass: FetchRepoMirrorCommand }],
   [IRepoMirrorSubcommand, { useClass: RemoveRepoMirrorCommand }],
   [IRepoMirrorSubcommand, { useClass: DoctorRepoMirrorCommand }],
+
+  [ITaskTemplateSubcommand, { useClass: AddTaskTemplateCommand }],
+  [ITaskTemplateSubcommand, { useClass: ListTaskTemplateCommand }],
+  [ITaskTemplateSubcommand, { useClass: UpdateTaskTemplateCommand }],
+  [ITaskTemplateSubcommand, { useClass: RenameTaskTemplateCommand }],
+  [ITaskTemplateSubcommand, { useClass: RemoveTaskTemplateCommand }],
 ]

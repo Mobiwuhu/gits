@@ -1,23 +1,10 @@
+import type {
+  GitBranchPreparationKind,
+  GitOutputStream,
+  GitStdioMode,
+} from '../constants/git'
 import type { RepositoryCommandResult } from './commandResult'
 import type { TaskRepository } from './task'
-
-export enum GitOutputStream {
-  Stderr = 'stderr',
-  Stdout = 'stdout',
-}
-
-export enum GitBranchPreparationKind {
-  CreatedFrom = 'created-from',
-  ExistingLocal = 'existing-local',
-  Failed = 'failed',
-  TrackedRemote = 'tracked-remote',
-}
-
-export enum GitStdioMode {
-  Inherit = 'inherit',
-  InteractivePipe = 'interactive-pipe',
-  Pipe = 'pipe',
-}
 
 export type GitOutputChunk = Readonly<{
   stream: GitOutputStream

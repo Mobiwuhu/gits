@@ -1,8 +1,8 @@
 import { Many } from '@wendellhu/redi'
-import { Cli, z } from 'incur'
+import { Cli } from 'incur'
 
 import cliPackage from '../../package.json' with { type: 'json' }
-import { ICliCommand } from '../contract/index'
+import { cliGlobalsSchema, ICliCommand } from '../contract/index'
 import type { ICliApplication } from '../contract/index'
 
 export class CliApplication implements ICliApplication {
@@ -12,12 +12,7 @@ export class CliApplication implements ICliApplication {
     const cli = Cli.create('gits', {
       description: 'Manage a task branch set across Git repositories.',
       globalAlias: { cwd: 'C' },
-      globals: z.object({
-        cwd: z
-          .string()
-          .optional()
-          .describe('Run as if started in this directory'),
-      }),
+      globals: cliGlobalsSchema,
       update: false,
       version: cliPackage.version,
     })

@@ -1,23 +1,13 @@
 import { IUninstallService } from '@usegits/core'
 import { Inject } from '@wendellhu/redi'
-import { Cli, z } from 'incur'
+import { z } from 'incur'
 
 import {
   ICliConfirmationService,
   ICliOutputService,
+  uninstallOutputSchema,
 } from '../../../contract/index'
-import type {
-  CliContext,
-  CliInstance,
-  ICliCommand,
-} from '../../../contract/index'
-
-interface UninstallOptions {
-  readonly detachDependents: boolean
-  readonly dryRun: boolean
-  readonly force: boolean
-  readonly yes: boolean
-}
+import type { CliInstance, ICliCommand } from '../../../contract/index'
 
 const uninstallOptions = z
   .object({
@@ -51,36 +41,31 @@ export class UninstallCommand implements ICliCommand {
   ) {}
 
   register(cli: CliInstance): void {
-    cli.command(
-      'uninstall',
-      Cli.command({
-        description:
-          'Remove all gits machine data and native scheduler projections.',
-        destructive: true,
-        hint: 'Use --dry-run first. --force may break repositories that borrow mirror objects.',
-        options: uninstallOptions,
-        run: async (rawContext) => {
-          const context = rawContext as CliContext & {
-            readonly options: UninstallOptions
-          }
-          return this.output.runUninstall(context, async (signal) => {
-            const confirmed =
-              context.options.dryRun ||
-              (await this.confirmation.confirm(
-                context,
-                context.options.yes,
-                'Permanently remove all gits mirrors, state, logs, and native schedules?'
-              ))
-            return this.service.execute({
-              confirmed,
-              detachDependents: context.options.detachDependents,
-              dryRun: context.options.dryRun,
-              force: context.options.force,
-              signal,
-            })
+    cli.command('uninstall', {
+      description:
+        'Remove all gits machine data and native scheduler projections.',
+      destructive: true,
+      hint: 'Use --dry-run first. --force may break repositories that borrow mirror objects.',
+      output: uninstallOutputSchema,
+      options: uninstallOptions,
+      run: async (context) => {
+        return this.output.runUninstall(context, async (signal) => {
+          const confirmed =
+            context.options.dryRun ||
+            (await this.confirmation.confirm(
+              context,
+              context.options.yes,
+              'Permanently remove all gits templates, mirrors, state, logs, and native schedules?'
+            ))
+          return this.service.execute({
+            confirmed,
+            detachDependents: context.options.detachDependents,
+            dryRun: context.options.dryRun,
+            force: context.options.force,
+            signal,
           })
-        },
-      })
-    )
+        })
+      },
+    })
   }
 }

@@ -27,15 +27,13 @@ import type {
   RepoMirrorDefinition,
   RepoMirrorView,
 } from '../../../contract/index'
+import { pathExists, signalOptions, uniqueStrings } from '../../../util/index'
 import {
   asNonEmptyUrls,
   commandError,
   moveToTrash,
   operationMessage,
-  pathExists,
   settledViews,
-  signalOptions,
-  uniqueStrings,
   validateJobs,
 } from './repoMirrorHelpers'
 import {

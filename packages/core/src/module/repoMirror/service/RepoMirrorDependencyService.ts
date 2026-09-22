@@ -21,6 +21,7 @@ import type {
   RepoMirrorDependencyState,
   RepoMirrorDependent,
 } from '../../../contract/index'
+import { hasErrorCode } from '../../../util/index'
 
 export class RepoMirrorDependencyService implements IRepoMirrorDependencyService {
   constructor(
@@ -145,7 +146,7 @@ export class RepoMirrorDependencyService implements IRepoMirrorDependencyService
     try {
       original = await readFile(alternatesPath, 'utf-8')
     } catch (error) {
-      return hasCode(error, 'ENOENT')
+      return hasErrorCode(error, 'ENOENT')
         ? null
         : `Cannot read alternates: ${error instanceof Error ? error.message : String(error)}`
     }
@@ -191,7 +192,7 @@ export class RepoMirrorDependencyService implements IRepoMirrorDependencyService
       }
       return parsed
     } catch (error) {
-      if (hasCode(error, 'ENOENT')) {
+      if (hasErrorCode(error, 'ENOENT')) {
         return { dependents: [], mirrorName, version: 1 }
       }
       throw error
@@ -225,7 +226,7 @@ async function referencesMirror(
     }
     return false
   } catch (error) {
-    if (hasCode(error, 'ENOENT')) {
+    if (hasErrorCode(error, 'ENOENT')) {
       return false
     }
     throw error
@@ -295,13 +296,4 @@ function commandFailure(command: string, stderr: string): string {
   return message.length === 0
     ? `${command} failed.`
     : `${command} failed: ${message}`
-}
-
-function hasCode(error: unknown, code: string): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === code
-  )
 }

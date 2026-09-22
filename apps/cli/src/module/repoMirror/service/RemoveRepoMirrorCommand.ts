@@ -1,24 +1,16 @@
 import { IRemoveRepoMirrorService } from '@usegits/core'
 import { Inject } from '@wendellhu/redi'
-import { Cli, z } from 'incur'
+import { z } from 'incur'
 
 import {
   ICliConfirmationService,
   ICliOutputService,
+  repoMirrorCommandOutputSchema,
 } from '../../../contract/index'
 import type {
-  CliContext,
   CliInstance,
   IRepoMirrorSubcommand,
 } from '../../../contract/index'
-
-interface RemoveOptions {
-  readonly detachDependents: boolean
-  readonly force: boolean
-  readonly jobs?: number
-  readonly purge: boolean
-  readonly yes: boolean
-}
 
 const removeOptions = z
   .object({
@@ -60,44 +52,38 @@ export class RemoveRepoMirrorCommand implements IRepoMirrorSubcommand {
   ) {}
 
   register(cli: CliInstance): void {
-    cli.command(
-      'remove',
-      Cli.command({
-        alias: { jobs: 'j' },
-        args: z.object({ names: z.array(z.string()).min(1) }),
-        description: 'Remove one or more repository mirrors.',
-        destructive: true,
-        hint: '--force may leave installed repositories unable to read borrowed Git objects.',
-        options: removeOptions,
-        run: async (rawContext) => {
-          const context = rawContext as CliContext & {
-            readonly args: { readonly names: readonly string[] }
-            readonly options: RemoveOptions
+    cli.command('remove', {
+      alias: { jobs: 'j' },
+      args: z.object({ names: z.array(z.string()).min(1) }),
+      description: 'Remove one or more repository mirrors.',
+      destructive: true,
+      hint: '--force may leave installed repositories unable to read borrowed Git objects.',
+      output: repoMirrorCommandOutputSchema,
+      options: removeOptions,
+      run: async (context) => {
+        return this.output.runRepoMirror(
+          context,
+          'repo-mirrors remove',
+          async (signal) => {
+            const confirmed = await this.confirmation.confirm(
+              context,
+              context.options.yes,
+              `Remove repo mirror${context.args.names.length === 1 ? '' : 's'} ${context.args.names.join(', ')}?`
+            )
+            return this.service.execute({
+              confirmed,
+              detachDependents: context.options.detachDependents,
+              force: context.options.force,
+              names: context.args.names,
+              purge: context.options.purge,
+              signal,
+              ...(context.options.jobs === undefined
+                ? {}
+                : { jobs: context.options.jobs }),
+            })
           }
-          return this.output.runRepoMirror(
-            context,
-            'repo-mirrors remove',
-            async (signal) => {
-              const confirmed = await this.confirmation.confirm(
-                context,
-                context.options.yes,
-                `Remove repo mirror${context.args.names.length === 1 ? '' : 's'} ${context.args.names.join(', ')}?`
-              )
-              return this.service.execute({
-                confirmed,
-                detachDependents: context.options.detachDependents,
-                force: context.options.force,
-                names: context.args.names,
-                purge: context.options.purge,
-                signal,
-                ...(context.options.jobs === undefined
-                  ? {}
-                  : { jobs: context.options.jobs }),
-              })
-            }
-          )
-        },
-      })
-    )
+        )
+      },
+    })
   }
 }

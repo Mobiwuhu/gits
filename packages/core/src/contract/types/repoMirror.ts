@@ -1,38 +1,12 @@
+import type {
+  RepoMirrorAction,
+  RepoMirrorInvocationSource,
+  RepoMirrorLastRunStatus,
+  RepoMirrorRepositoryState,
+  RepoMirrorSchedulerBackend,
+  RepoMirrorScheduleState,
+} from '../constants/repoMirror'
 import type { GitCommandResult } from './git'
-
-export enum RepoMirrorRepositoryState {
-  Initializing = 'initializing',
-  Ready = 'ready',
-  Missing = 'missing',
-  Invalid = 'invalid',
-}
-
-export enum RepoMirrorScheduleState {
-  Off = 'off',
-  Ready = 'ready',
-  Unavailable = 'unavailable',
-  Drifted = 'drifted',
-}
-
-export enum RepoMirrorLastRunStatus {
-  Never = 'never',
-  Running = 'running',
-  Success = 'success',
-  Failed = 'failed',
-  Interrupted = 'interrupted',
-  SkippedLocked = 'skipped-locked',
-}
-
-export enum RepoMirrorInvocationSource {
-  Manual = 'manual',
-  Scheduler = 'scheduler',
-}
-
-export enum RepoMirrorSchedulerBackend {
-  Launchd = 'launchd',
-  Systemd = 'systemd',
-  Unsupported = 'unsupported',
-}
 
 export interface RepoMirrorSchedule {
   readonly cron: string
@@ -57,19 +31,6 @@ export interface RepoMirrorConfiguration {
 export interface RepoMirrorCommandError {
   readonly code: string
   readonly message: string
-}
-
-export enum RepoMirrorAction {
-  Created = 'created',
-  Updated = 'updated',
-  Unchanged = 'unchanged',
-  Fetched = 'fetched',
-  Removed = 'removed',
-  Repaired = 'repaired',
-  Checked = 'checked',
-  Skipped = 'skipped',
-  Failed = 'failed',
-  NotRun = 'not-run',
 }
 
 export interface RepoMirrorRunState {

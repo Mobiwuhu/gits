@@ -1,13 +1,13 @@
 import { IInstallTaskService } from '@usegits/core'
 import { Inject } from '@wendellhu/redi'
-import { Cli, z } from 'incur'
+import { z } from 'incur'
 
-import { ICliOutputService, ICliRuntimeService } from '../../../contract/index'
-import type {
-  CliContext,
-  CliInstance,
-  ICliCommand,
+import {
+  commandOutputSchema,
+  ICliOutputService,
+  ICliRuntimeService,
 } from '../../../contract/index'
+import type { CliInstance, ICliCommand } from '../../../contract/index'
 
 export class InstallTaskCommand implements ICliCommand {
   constructor(
@@ -17,47 +17,38 @@ export class InstallTaskCommand implements ICliCommand {
   ) {}
 
   register(cli: CliInstance): void {
-    cli.command(
-      'install',
-      Cli.command({
-        alias: { jobs: 'j' },
-        args: z.object({ repos: z.array(z.string()).default([]) }),
-        description:
-          'Clone repositories, prepare task branches, and align checkout directories.',
-        options: z.object({
-          jobs: z
-            .string()
-            .optional()
-            .describe('Maximum concurrent network jobs'),
-        }),
-        run: async (rawContext) => {
-          const context = rawContext as CliContext & {
-            readonly args: { readonly repos: readonly string[] }
-            readonly options: { readonly jobs?: string }
-          }
-          return this.output.runCommand(
-            context,
-            'install',
-            async (signal) => {
-              const jobs = this.runtime.parseJobs(context.options.jobs)
-              return this.service.execute({
-                interactive: !context.agent,
-                renderProgress: !context.agent,
-                repositories: context.args.repos,
-                root: await this.runtime.taskRoot(context),
-                signal,
-                ...(jobs === undefined ? {} : { jobs }),
-              })
+    cli.command('install', {
+      alias: { jobs: 'j' },
+      args: z.object({ repos: z.array(z.string()).default([]) }),
+      description:
+        'Clone repositories, prepare task branches, and align checkout directories.',
+      output: commandOutputSchema,
+      options: z.object({
+        jobs: z.string().optional().describe('Maximum concurrent network jobs'),
+      }),
+      run: async (context) => {
+        return this.output.runCommand(
+          context,
+          'install',
+          async (signal) => {
+            const jobs = this.runtime.parseJobs(context.options.jobs)
+            return this.service.execute({
+              interactive: !context.agent,
+              renderProgress: !context.agent,
+              repositories: context.args.repos,
+              root: await this.runtime.taskRoot(context),
+              signal,
+              ...(jobs === undefined ? {} : { jobs }),
+            })
+          },
+          [
+            {
+              command: 'status',
+              description: 'Inspect prepared repositories',
             },
-            [
-              {
-                command: 'status',
-                description: 'Inspect prepared repositories',
-              },
-            ]
-          )
-        },
-      })
-    )
+          ]
+        )
+      },
+    })
   }
 }

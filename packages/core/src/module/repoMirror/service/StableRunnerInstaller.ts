@@ -19,6 +19,7 @@ import {
   gitsManagedArtifactRegistry,
   gitsSchedulerWorkerEnvironmentVariable,
 } from '../../../service/index'
+import { errorMessage, hasErrorCode, pathExists } from '../../../util/index'
 
 export const nativeRepoMirrorLogMaximumBytes: number = 1024 * 1024
 export const nativeRepoMirrorLogMaximumBackups = 2
@@ -352,34 +353,9 @@ async function readOptional(path: string): Promise<string | null> {
   try {
     return await readFile(path, 'utf-8')
   } catch (error) {
-    if (hasCode(error, 'ENOENT')) {
+    if (hasErrorCode(error, 'ENOENT')) {
       return null
     }
     throw error
   }
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await stat(path)
-    return true
-  } catch (error) {
-    if (hasCode(error, 'ENOENT')) {
-      return false
-    }
-    throw error
-  }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-function hasCode(error: unknown, code: string): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === code
-  )
 }

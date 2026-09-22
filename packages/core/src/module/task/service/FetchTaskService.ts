@@ -7,8 +7,6 @@ import {
   ITaskConfigurationService,
   RepositoryActionResult,
   RepositoryState,
-  reportProgress,
-  initialRepositoryResult,
 } from '../../../contract/index'
 import type {
   IFetchTaskService,
@@ -19,10 +17,13 @@ import type {
   RepositoryCommandResult,
   TaskRepository,
 } from '../../../contract/index'
+import { initialRepositoryResult } from '../../../service/repositoryResult'
+import { signalOptions } from '../../../util/index'
 import { gitCommandError, isGitCommandSuccessful } from './gitResult'
 import { loadTaskConfiguration } from './loadTaskConfiguration'
 import { preflightRemotes, remoteFailureFor } from './remotePreflight'
 import { repositoryTaskPresentation } from './taskPresentation'
+import { reportProgress } from './taskProgress'
 import {
   commandError,
   isConflictState,
@@ -55,7 +56,7 @@ export class FetchTaskService implements IFetchTaskService {
     const inspected = await Promise.all(
       repositories.map(async (repository) => ({
         repository,
-        result: await this.git.inspect(repository, withSignal(input.signal)),
+        result: await this.git.inspect(repository, signalOptions(input.signal)),
       }))
     )
     const candidates = inspected
@@ -101,7 +102,10 @@ export class FetchTaskService implements IFetchTaskService {
         updateProgress(input, task, repository, 'starting fetch')
         const preflightFailure = remoteFailureFor(preflightFailures, repository)
         if (preflightFailure) {
-          const status = await this.git.inspect(repository, withSignal(signal))
+          const status = await this.git.inspect(
+            repository,
+            signalOptions(signal)
+          )
           updateProgress(input, task, repository, 'fetch failed')
           return withCommandError(status, preflightFailure)
         }
@@ -111,7 +115,7 @@ export class FetchTaskService implements IFetchTaskService {
           repository.absolutePath,
           workerOptions(input, signal, task)
         )
-        const status = await this.git.inspect(repository, withSignal(signal))
+        const status = await this.git.inspect(repository, signalOptions(signal))
         updateProgress(
           input,
           task,
@@ -206,10 +210,4 @@ function updateProgress(
 ): void {
   task.update(phase)
   reportProgress(input.onProgress, { phase, repository: repository.name })
-}
-
-function withSignal(signal: AbortSignal | undefined): {
-  readonly signal?: AbortSignal
-} {
-  return signal ? { signal } : {}
 }

@@ -1,9 +1,8 @@
 import type {
   RepoMirrorAction,
-  RepoMirrorCommandError,
   RepoMirrorInvocationSource,
-  RepoMirrorView,
-} from './repoMirror'
+} from '../constants/repoMirror'
+import type { RepoMirrorCommandError, RepoMirrorView } from './repoMirror'
 
 export interface ListRepoMirrorsInput {
   readonly includeSize?: boolean

@@ -5,6 +5,11 @@ export { GitService } from './GitService'
 export { GitsPathService } from './GitsPathService'
 export { ProcessService } from './ProcessService'
 export {
+  emptyActualState,
+  expectedState,
+  initialRepositoryResult,
+} from './repositoryResult'
+export {
   gitsExternalPersistenceRegistry,
   gitsHomePersistenceKeys,
   gitsHomePersistenceRegistry,

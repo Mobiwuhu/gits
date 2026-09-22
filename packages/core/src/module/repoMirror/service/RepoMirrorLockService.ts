@@ -9,6 +9,7 @@ import type {
   IRepoMirrorLockService,
   RepoMirrorLockRelease,
 } from '../../../contract/index'
+import { hasErrorCode } from '../../../util/index'
 
 const staleMilliseconds = 60_000
 const updateMilliseconds = 10_000
@@ -77,7 +78,7 @@ async function tryLock(
       update: updateMilliseconds,
     })
   } catch (error) {
-    if (hasCode(error, 'ELOCKED')) {
+    if (hasErrorCode(error, 'ELOCKED')) {
       return null
     }
     throw error
@@ -107,13 +108,4 @@ async function abortableDelay(
       { once: true }
     )
   })
-}
-
-function hasCode(error: unknown, code: string): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === code
-  )
 }

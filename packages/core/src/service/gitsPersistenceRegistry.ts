@@ -21,6 +21,7 @@ export interface GitsHomePersistenceEntries {
   readonly mirrorState: GitsHomePersistenceEntry
   readonly operations: GitsHomePersistenceEntry
   readonly state: GitsHomePersistenceEntry
+  readonly templates: GitsHomePersistenceEntry
   readonly temporary: GitsHomePersistenceEntry
   readonly trash: GitsHomePersistenceEntry
 }
@@ -85,13 +86,18 @@ export const gitsHomePersistenceRegistry: GitsHomePersistenceEntries = {
     kind: GitsPersistenceTargetKind.Directory,
     relativePath: 'state',
   },
+  templates: {
+    description: 'Machine-local task templates',
+    kind: GitsPersistenceTargetKind.Directory,
+    relativePath: 'templates',
+  },
   temporary: {
     description: 'Transactional temporary files',
     kind: GitsPersistenceTargetKind.Directory,
     relativePath: 'tmp',
   },
   trash: {
-    description: 'Recoverable removed mirrors',
+    description: 'Recoverable removed gits resources',
     kind: GitsPersistenceTargetKind.Directory,
     relativePath: 'trash',
   },
@@ -110,6 +116,7 @@ export const gitsHomePersistenceKeys: readonly GitsHomePersistenceKey[] = [
   'mirrorState',
   'operations',
   'state',
+  'templates',
   'temporary',
   'trash',
 ]

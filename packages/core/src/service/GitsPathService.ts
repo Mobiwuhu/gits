@@ -12,6 +12,7 @@ import type {
   IGitsPathService,
   ResolveGitsPathsOptions,
 } from '../contract/index'
+import { hasErrorCode } from '../util/index'
 import {
   gitsHomePersistenceKeys,
   gitsHomePersistenceRegistry,
@@ -31,6 +32,7 @@ export class GitsPathService implements IGitsPathService {
   readonly mirrorState: string
   readonly operations: string
   readonly state: string
+  readonly templates: string
   readonly temporary: string
   readonly trash: string
 
@@ -47,6 +49,7 @@ export class GitsPathService implements IGitsPathService {
     this.mirrorState = paths.mirrorState
     this.operations = paths.operations
     this.state = paths.state
+    this.templates = paths.templates
     this.temporary = paths.temporary
     this.trash = paths.trash
   }
@@ -71,7 +74,7 @@ export class GitsPathService implements IGitsPathService {
       }
       throw new RepoMirrorConfigurationError('installation-id is invalid.')
     } catch (error) {
-      if (!this.hasCode(error, 'ENOENT')) {
+      if (!hasErrorCode(error, 'ENOENT')) {
         throw error
       }
     }
@@ -85,7 +88,7 @@ export class GitsPathService implements IGitsPathService {
       })
       return value
     } catch (error) {
-      if (!this.hasCode(error, 'EEXIST')) {
+      if (!hasErrorCode(error, 'EEXIST')) {
         throw error
       }
       await access(this.installationId)
@@ -122,6 +125,7 @@ export class GitsPathService implements IGitsPathService {
       mirrors: resolveRegisteredGitsHomePath(home, 'mirrors'),
       operations: resolveRegisteredGitsHomePath(home, 'operations'),
       state: resolveRegisteredGitsHomePath(home, 'state'),
+      templates: resolveRegisteredGitsHomePath(home, 'templates'),
       temporary: resolveRegisteredGitsHomePath(home, 'temporary'),
       trash: resolveRegisteredGitsHomePath(home, 'trash'),
     }
@@ -135,14 +139,5 @@ export class GitsPathService implements IGitsPathService {
           GitsPersistenceTargetKind.Directory
       )
       .map((key) => this[key])
-  }
-
-  private hasCode(error: unknown, code: string): boolean {
-    return (
-      typeof error === 'object' &&
-      error !== null &&
-      'code' in error &&
-      error.code === code
-    )
   }
 }

@@ -3,8 +3,6 @@ import { stat } from 'node:fs/promises'
 import { Inject } from '@wendellhu/redi'
 
 import {
-  emptyActualState,
-  expectedState,
   GitBranchPreparationKind,
   GitStdioMode,
   RepositoryActionResult,
@@ -29,7 +27,9 @@ import type {
   TaskRepository,
   IGitService,
 } from '../contract/index'
+import { hasErrorCode } from '../util/index'
 import { compareGitUrls } from './gitUrl'
+import { emptyActualState, expectedState } from './repositoryResult'
 
 export type {
   GitBranchPreparation,
@@ -646,7 +646,9 @@ async function inspectPath(path: string): Promise<PathState> {
     const metadata = await stat(path)
     return metadata.isDirectory() ? PathState.Directory : PathState.NotDirectory
   } catch (error: unknown) {
-    return hasCode(error, 'ENOENT') ? PathState.Missing : PathState.Unavailable
+    return hasErrorCode(error, 'ENOENT')
+      ? PathState.Missing
+      : PathState.Unavailable
   }
 }
 
@@ -825,13 +827,4 @@ function toUnexpectedCommandError(error: unknown): CommandError {
         ? error.message
         : 'Git command failed unexpectedly',
   }
-}
-
-function hasCode(error: unknown, code: string): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === code
-  )
 }

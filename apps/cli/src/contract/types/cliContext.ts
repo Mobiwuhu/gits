@@ -1,21 +1,33 @@
-import type { Cli } from 'incur'
+import { z } from 'incur'
+import type { Cli, Formatter } from 'incur'
 
-export type CliInstance = Cli.Cli<any, any, any, any>
+export const cliGlobalsSchema: z.ZodObject<{
+  cwd: z.ZodOptional<z.ZodString>
+}> = z.object({
+  cwd: z.string().optional().describe('Run as if started in this directory'),
+})
+
+export type CliInstance = Cli.Cli<
+  {},
+  undefined,
+  undefined,
+  typeof cliGlobalsSchema
+>
 
 export interface SuggestedCommand {
   readonly command: string
   readonly description?: string
 }
 
-export interface CliContext {
+export interface CliContext<TOutput = never> {
   readonly agent: boolean
-  readonly format: string
-  readonly globals: { readonly cwd?: string }
+  readonly format: Formatter.Format
+  readonly globals: z.output<typeof cliGlobalsSchema>
   readonly ok: (
-    data: unknown,
+    data: TOutput,
     metadata?: {
       readonly cta?: {
-        readonly commands: readonly SuggestedCommand[]
+        readonly commands: SuggestedCommand[]
       }
     }
   ) => never

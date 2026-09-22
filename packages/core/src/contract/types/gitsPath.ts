@@ -10,6 +10,7 @@ export interface GitsPaths {
   readonly mirrorState: string
   readonly operations: string
   readonly state: string
+  readonly templates: string
   readonly temporary: string
   readonly trash: string
 }

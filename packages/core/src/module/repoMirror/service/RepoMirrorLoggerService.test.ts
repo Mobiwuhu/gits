@@ -4,7 +4,6 @@ import {
   mkdir,
   readdir,
   rm,
-  stat,
   utimes,
   writeFile,
 } from 'node:fs/promises'
@@ -17,6 +16,7 @@ import {
   RepoMirrorLastRunStatus,
 } from '../../../contract/index'
 import { FileSystemService, GitsPathService } from '../../../service/index'
+import { hasErrorCode, pathExists } from '../../../util/index'
 import { RepoMirrorLoggerService } from './RepoMirrorLoggerService'
 
 void describe('pino repo mirror logger retention', () => {
@@ -137,10 +137,10 @@ void describe('pino repo mirror logger retention', () => {
         'api',
         RepoMirrorInvocationSource.Manual
       )
-      assert.equal(await exists(staleLegacy), false)
-      assert.equal(await exists(recentLegacy), true)
-      assert.equal(await exists(liveOwner), true)
-      assert.equal(await exists(expiredOwner), false)
+      assert.equal(await pathExists(staleLegacy), false)
+      assert.equal(await pathExists(recentLegacy), true)
+      assert.equal(await pathExists(liveOwner), true)
+      assert.equal(await pathExists(expiredOwner), false)
       await session.finish(RepoMirrorLastRunStatus.Success)
     } finally {
       await rm(root, { force: true, recursive: true })
@@ -155,30 +155,9 @@ async function completedLogs(directory: string): Promise<readonly string[]> {
       (entry) => entry.endsWith('.jsonl') && !entry.endsWith('.active.jsonl')
     )
   } catch (error) {
-    if (hasCode(error, 'ENOENT')) {
+    if (hasErrorCode(error, 'ENOENT')) {
       return []
     }
     throw error
   }
-}
-
-async function exists(path: string): Promise<boolean> {
-  try {
-    await stat(path)
-    return true
-  } catch (error) {
-    if (hasCode(error, 'ENOENT')) {
-      return false
-    }
-    throw error
-  }
-}
-
-function hasCode(error: unknown, code: string): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === code
-  )
 }

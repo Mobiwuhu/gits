@@ -17,6 +17,7 @@ import type {
   RepoMirrorLogSession,
   RepoMirrorRunState,
 } from '../../../contract/index'
+import { hasErrorCode } from '../../../util/index'
 
 const mebibyte = 1024 * 1024
 const day = 24 * 60 * 60 * 1000
@@ -101,7 +102,7 @@ export class RepoMirrorLoggerService implements IRepoMirrorLoggerService {
       )
       return isRunState(value) ? value : null
     } catch (error) {
-      if (hasCode(error, 'ENOENT')) {
+      if (hasErrorCode(error, 'ENOENT')) {
         return null
       }
       throw error
@@ -118,7 +119,7 @@ export class RepoMirrorLoggerService implements IRepoMirrorLoggerService {
         .toSorted()
         .toReversed()
     } catch (error) {
-      if (hasCode(error, 'ENOENT')) {
+      if (hasErrorCode(error, 'ENOENT')) {
         return []
       }
       throw error
@@ -129,7 +130,7 @@ export class RepoMirrorLoggerService implements IRepoMirrorLoggerService {
         try {
           return await readFile(resolve(directory, entry), 'utf-8')
         } catch (error) {
-          if (hasCode(error, 'ENOENT')) {
+          if (hasErrorCode(error, 'ENOENT')) {
             return null
           }
           throw error
@@ -293,7 +294,7 @@ async function retainGlobalLogs(
     const entries = await readdir(logsRoot, { withFileTypes: true })
     directories = entries.filter((entry) => entry.isDirectory())
   } catch (error) {
-    if (hasCode(error, 'ENOENT')) {
+    if (hasErrorCode(error, 'ENOENT')) {
       return
     }
     throw error
@@ -331,7 +332,7 @@ async function listCompletedLogs(
       (entry) => entry.endsWith('.jsonl') && !entry.endsWith('.active.jsonl')
     )
   } catch (error) {
-    if (hasCode(error, 'ENOENT')) {
+    if (hasErrorCode(error, 'ENOENT')) {
       return []
     }
     throw error
@@ -344,7 +345,7 @@ async function listCompletedLogs(
         const metadata = await stat(path)
         return { modifiedAt: metadata.mtimeMs, path, size: metadata.size }
       } catch (error) {
-        if (hasCode(error, 'ENOENT')) {
+        if (hasErrorCode(error, 'ENOENT')) {
           return null
         }
         throw error
@@ -366,7 +367,7 @@ async function removeStaleActiveLogs(
       entry.endsWith('.active.jsonl')
     )
   } catch (error) {
-    if (hasCode(error, 'ENOENT')) {
+    if (hasErrorCode(error, 'ENOENT')) {
       return
     }
     throw error
@@ -387,7 +388,7 @@ async function removeStaleActiveLogs(
           await rm(path, { force: true })
         }
       } catch (error) {
-        if (!hasCode(error, 'ENOENT')) {
+        if (!hasErrorCode(error, 'ENOENT')) {
           throw error
         }
       }
@@ -412,7 +413,7 @@ function isProcessAlive(processId: number): boolean {
     process.kill(processId, 0)
     return true
   } catch (error) {
-    return hasCode(error, 'EPERM')
+    return hasErrorCode(error, 'EPERM')
   }
 }
 
@@ -484,13 +485,4 @@ function sanitize(value: string): string {
   return value
     .replaceAll(/https?:\/\/[^\s/@]+:[^\s/@]+@/giu, 'https://<redacted>@')
     .slice(0, 2000)
-}
-
-function hasCode(error: unknown, code: string): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === code
-  )
 }

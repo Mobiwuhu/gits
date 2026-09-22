@@ -154,12 +154,36 @@ pnpm dev -- -C /tmp/gits-demo status
 To reuse the task context from an existing task directory:
 
 ```sh
-mkdir -p /tmp/gits-demo-copy
-pnpm dev -- -C /tmp/gits-demo-copy init \
-  --scan ~/tasks/task-example
+pnpm dev -- -C /tmp init gits-demo-copy \
+  --from ~/tasks/task-example
 ```
 
-`--scan` recursively copies every file and directory from the source task except the source `repos/` tree. The target task installs its own repository workspaces from the imported `task.config.jsonc`. Scanning does not recursively search for other task configurations, access remotes, or modify the source directory.
+`--from` imports content according to the `.gitignore` rules effective for the source, skips the source's top-level `repos/` tree, and fills any missing scaffold paths from the current Scaffdog default. The source root must contain a valid, non-ignored `task.config.jsonc`. This operation does not access remotes, execute source scripts, or modify the source directory.
+
+### Reusable task templates
+
+Save a complete task directory as a machine-local named template when you reuse the same scaffold frequently:
+
+```sh
+gits init ./template-seed
+# Customize configuration, instructions, and other files in template-seed
+gits template add fullstack ./template-seed
+gits template list
+gits init ./payment-refactor --template fullstack
+```
+
+A template is an independent snapshot stored under `${GITS_HOME}/templates/` (normally `~/.gits/templates/`) and no longer depends on its source directory. `template add` and `template update` require the complete current Scaffdog scaffold. They honor root, nested, and applicable parent `.gitignore` rules, including `!` negations. The top-level `repos/AGENTS.md` is retained, while real repository worktrees, every `.git`, and transaction paths are excluded. All content outside fixed exclusions and `.gitignore` is stored verbatim; this is not secret scanning.
+
+Manage the template lifecycle with:
+
+```sh
+gits template update fullstack ./template-seed
+gits template rename fullstack team-default
+gits template remove team-default --yes          # move to trash
+gits template remove team-default --purge --yes  # delete permanently
+```
+
+The built-in `default` template is always listed and usable, but cannot be updated, renamed, or removed. Template names and target directory names are independent. Instantiating a saved template does not reapply the `.gitignore` stored in its snapshot.
 
 ### Checking out only part of a repository
 
@@ -199,7 +223,12 @@ By default, non-dissociated installations continue to borrow mirror objects thro
 ## Commands
 
 ```sh
-gits init [--scan <source-task-dir>]
+gits init [directory] [--template <name> | --from <source-task-dir>] [--dry-run]
+gits template add <name> <source-directory> [--dry-run]
+gits template list [--wide]
+gits template update <name> <source-directory> [--dry-run]
+gits template rename <name> <new-name>
+gits template remove <name> [--purge] [--yes]
 gits install [-j <jobs>] [repo...]
 gits status [repo...]
 gits fetch [-j <jobs>] [repo...]
@@ -223,7 +252,7 @@ Task commands search upward from the current directory for the nearest `task.con
 gits -C tasks/task-template-import status --json
 ```
 
-The `--json` output for task commands has a stable `{ command, ok, repos }` shape; mirror commands return `{ command, ok, mirrors }`. Incur also provides command schemas, shell completion, `--llms`, MCP, and suggested next actions (CTA).
+The `--json` output for task commands has a stable `{ command, ok, repos }` shape, with a template-source summary added by `init`. Template commands return `{ command, ok, templates }`, and mirror commands return `{ command, ok, mirrors }`. Incur also provides command schemas, shell completion, `--llms`, MCP, and suggested next actions (CTA).
 
 ## Uninstall
 
@@ -233,7 +262,7 @@ Preview every persistent gits path that will be removed:
 gits uninstall --dry-run
 ```
 
-After confirmation, uninstall stops and removes the LaunchAgent or systemd user timer owned by the current `GITS_HOME`, including Linux timer enablement symlinks. It permanently deletes mirrors, configuration, state, logs, locks, temporary files, trash, and finally `GITS_HOME` itself:
+After confirmation, uninstall stops and removes the LaunchAgent or systemd user timer owned by the current `GITS_HOME`, including Linux timer enablement symlinks. It permanently deletes templates, mirrors, configuration, state, logs, locks, temporary files, trash, and finally `GITS_HOME` itself:
 
 ```sh
 gits uninstall --yes
@@ -266,6 +295,7 @@ A mirror is a bare repository created with `git clone --mirror`. It contains Git
 ```text
 ~/.gits/
 ├── config.jsonc
+├── templates/<name>/{manifest.json,content/}
 ├── repo-mirrors/<name>.git/
 ├── state/repo-mirror-dependencies/<name>.json
 ├── logs/repo-mirrors/<name>/*.jsonl
@@ -336,7 +366,8 @@ gits repo-mirrors remove api --purge --yes               # permanently delete wi
 
 - `init` is idempotent: it fills in missing scaffold files without overwriting existing content.
 - Placeholder values such as `<...>` prevent `install`, `status`, `fetch`, `switch`, and `push` from running.
-- `init --scan <source-task-dir>` imports all task content except `repos/` from the source root. It does not search recursively for other task configurations, access remotes, or read or modify Git repositories in the source directory.
+- `init <directory> --from <source-task-dir>` imports source content except the top-level `repos/` according to `.gitignore`, then completes missing defaults in the same transaction. It does not access remotes or modify the source.
+- `template add/update` requires a source that already contains the complete default scaffold. A named template is an independent machine-level snapshot with no ongoing link to its source or instances.
 - Import replaces only default scaffold content in the target. It fails instead of overwriting customized target files.
 - `install` clones into a tool-managed temporary directory and atomically moves the repository into place only after sparse checkout and branch preparation succeed. For an existing repository, it safely reconciles `checkout` without changing unrelated Git state.
 - `install` transparently tries to use a healthy matching mirror. Invalid configuration, mirror health, or locks cause a lossless fallback to a normal clone.
@@ -353,7 +384,7 @@ gits repo-mirrors remove api --purge --yes               # permanently delete wi
 apps/cli/src/
 ├── contract/        # CLI types, constants, and injectable interfaces
 ├── service/         # CLI startup, interaction, errors, output, and progress
-├── module/          # Task, RepoMirror, and Uninstall command classes
+├── module/          # Task, TaskTemplate, RepoMirror, and Uninstall command classes
 ├── bootstrap/       # the single Injector composition root
 ├── dependencies.ts  # default CLI bindings
 └── index.ts         # process entry point
@@ -361,7 +392,7 @@ apps/cli/src/
 packages/core/src/
 ├── contract/        # cross-package types and injectable interfaces/Identifiers
 ├── service/         # foundational Git, file, process, and concurrency services
-├── module/          # Task, RepoMirror, and Uninstall business services
+├── module/          # Task, TaskTemplate, RepoMirror, and Uninstall business services
 ├── dependencies.ts  # default Core bindings
 └── index.ts         # public Core surface consumed by CLI
 ```
@@ -378,7 +409,7 @@ The Core package has one conditional export map: the explicitly enabled `@usegit
 pnpm check
 ```
 
-This command checks formatting, lint, types, architecture boundaries, tests, packages, and builds. CLI integration tests use isolated local bare Git remotes and cover scaffolding, `-C`, template import, configuration placeholders, installation, status, push, and `switch --stash`. Concurrency tests cover limits, stable result ordering, independent failures, and interruption semantics with Listr2 presentation enabled.
+This command checks formatting, lint, types, architecture boundaries, tests, packages, and builds. CLI integration tests use isolated local bare Git remotes and cover scaffolding, `-C`, one-off directory imports, the named-template lifecycle, configuration placeholders, installation, status, push, and `switch --stash`. Concurrency tests cover limits, stable result ordering, independent failures, and interruption semantics with Listr2 presentation enabled.
 
 ## Author and license
 

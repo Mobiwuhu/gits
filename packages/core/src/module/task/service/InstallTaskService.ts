@@ -14,8 +14,6 @@ import {
   RepositoryActionResult,
   RepositoryFlag,
   RepositoryState,
-  reportProgress,
-  initialRepositoryResult,
 } from '../../../contract/index'
 import type {
   GitCloneOptions,
@@ -28,6 +26,8 @@ import type {
   RepositoryCommandResult,
   TaskRepository,
 } from '../../../contract/index'
+import { initialRepositoryResult } from '../../../service/repositoryResult'
+import { signalOptions } from '../../../util/index'
 import {
   checkoutDiffers,
   validateConfiguredCheckout,
@@ -36,6 +36,7 @@ import { gitCommandError, isGitCommandSuccessful } from './gitResult'
 import { loadTaskConfiguration } from './loadTaskConfiguration'
 import { preflightRemotes, remoteFailureFor } from './remotePreflight'
 import { repositoryTaskPresentation } from './taskPresentation'
+import { reportProgress } from './taskProgress'
 import {
   commandError,
   isConflictState,
@@ -77,7 +78,7 @@ export class InstallTaskService implements IInstallTaskService {
     const inspected = await Promise.all(
       repositories.map(async (repository) => ({
         repository,
-        result: await this.git.inspect(repository, withSignal(input.signal)),
+        result: await this.git.inspect(repository, signalOptions(input.signal)),
       }))
     )
     const missing = inspected
@@ -167,7 +168,7 @@ export class InstallTaskService implements IInstallTaskService {
 
         const status = await this.git.inspect(
           plan.repository,
-          withSignal(signal)
+          signalOptions(signal)
         )
         if (checkoutDiffers(status)) {
           return withCommandError(
@@ -411,7 +412,7 @@ export class InstallTaskService implements IInstallTaskService {
       await rename(temporaryRepository, repository.absolutePath)
       const status = await this.git.inspect(
         repository,
-        withSignal(input.signal)
+        signalOptions(input.signal)
       )
       updateProgress(input, task, repository, 'installed')
       return withInstallMetadata(
@@ -543,10 +544,4 @@ function updateProgress(
 ): void {
   task.update(phase)
   reportProgress(input.onProgress, { phase, repository: repository.name })
-}
-
-function withSignal(signal: AbortSignal | undefined): {
-  readonly signal?: AbortSignal
-} {
-  return signal ? { signal } : {}
 }

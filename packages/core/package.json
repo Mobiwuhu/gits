@@ -48,9 +48,11 @@
     "@scaffdog/engine": "catalog:",
     "@wendellhu/redi": "catalog:",
     "cron-parser": "catalog:",
+    "globby": "catalog:",
     "jsonc-parser": "catalog:",
     "pino": "catalog:",
-    "plist": "catalog:"
+    "plist": "catalog:",
+    "valibot": "catalog:"
   },
   "engines": {
     "node": ">=22.17.1"

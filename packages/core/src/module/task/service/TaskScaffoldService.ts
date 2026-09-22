@@ -5,7 +5,10 @@ import { extract } from '@scaffdog/core'
 import { compile, createContext, extendContext } from '@scaffdog/engine'
 
 import { GitsError } from '../../../contract/index'
-import type { ITaskScaffoldService } from '../../../contract/index'
+import type {
+  ITaskScaffoldService,
+  ScaffoldFile,
+} from '../../../contract/index'
 
 const templateFileName = 'taskScaffold.md'
 
@@ -14,7 +17,7 @@ export class TaskScaffoldService implements ITaskScaffoldService {
     const taskRoot = resolve(root)
     await mkdir(taskRoot, { recursive: true })
 
-    const files = await this.renderTemplate(taskRoot)
+    const files = await this.render(taskRoot)
     await Promise.all(
       files.map(async (file) => {
         await mkdir(dirname(file.path), { recursive: true })
@@ -30,11 +33,11 @@ export class TaskScaffoldService implements ITaskScaffoldService {
   ): Promise<boolean> {
     const taskRoot = resolve(root)
     const path = this.resolveOutputPath(taskRoot, relativePath)
-    const files = await this.renderTemplate(taskRoot)
+    const files = await this.render(taskRoot)
     return files.some((file) => file.path === path && file.content === content)
   }
 
-  private async renderTemplate(root: string): Promise<readonly ScaffoldFile[]> {
+  async render(root: string): Promise<readonly ScaffoldFile[]> {
     const source = await this.readTemplate()
     const extracted = extract(source, {})
     const context = createContext({ cwd: root })
@@ -54,7 +57,11 @@ export class TaskScaffoldService implements ITaskScaffoldService {
         template.content,
         extendContext(context, { variables })
       )
-      return { content, path }
+      return {
+        content,
+        path,
+        relativePath: relative(root, path).split(sep).join('/'),
+      }
     })
 
     if (files.length === 0) {
@@ -129,11 +136,6 @@ export class TaskScaffoldService implements ITaskScaffoldService {
       throw error
     }
   }
-}
-
-interface ScaffoldFile {
-  readonly content: string
-  readonly path: string
 }
 
 function isMissingPathError(error: unknown): boolean {

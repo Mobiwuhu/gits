@@ -3,13 +3,17 @@ import {
   IncompleteConfigurationError,
   initialRepositoryResult,
 } from '@usegits/core'
-import type { RepositoryCommandResult } from '@usegits/core'
+import type {
+  RepositoryCommandResult,
+  TaskTemplateCommandName,
+} from '@usegits/core'
 
 import { exitCode } from '../contract/index'
 import type {
   CommandPresentation,
   ICliErrorService,
   RepoMirrorPresentation,
+  TaskTemplatePresentation,
   UninstallPresentation,
 } from '../contract/index'
 
@@ -66,6 +70,25 @@ export class CliErrorService implements ICliErrorService {
         command,
         mirrors: [],
         ok: false,
+        warnings: [`${code}: ${message}`],
+      },
+    }
+  }
+
+  taskTemplate(
+    command: TaskTemplateCommandName,
+    error: unknown,
+    aborted: boolean
+  ): TaskTemplatePresentation {
+    const interrupted = aborted || isInterrupted(error)
+    const code = failureCode(error, interrupted)
+    const message = errorMessage(error)
+    return {
+      exitCode: failureExitCode(error, interrupted),
+      output: {
+        command,
+        ok: false,
+        templates: [],
         warnings: [`${code}: ${message}`],
       },
     }

@@ -2,6 +2,7 @@ import type {
   CommandOutput,
   GitsUninstallOutput,
   RepoMirrorCommandOutput,
+  TaskTemplateCommandOutput,
 } from '@usegits/core'
 
 import type { SuggestedCommand } from './cliContext'
@@ -11,20 +12,25 @@ export interface CliDiagnostic {
   readonly message: string
 }
 
-export interface CommandPresentation {
+export interface CliPresentation<TOutput> {
+  readonly exitCode: number
+  readonly output: TOutput
+}
+
+export interface CommandPresentation extends CliPresentation<CommandOutput> {
   readonly diagnostic?: CliDiagnostic
-  readonly exitCode: number
-  readonly output: CommandOutput
 }
 
-export interface RepoMirrorPresentation {
-  readonly exitCode: number
-  readonly output: RepoMirrorCommandOutput
-}
+export type RepoMirrorPresentation = CliPresentation<RepoMirrorCommandOutput>
 
-export interface UninstallPresentation {
-  readonly exitCode: number
-  readonly output: GitsUninstallOutput
+export type UninstallPresentation = CliPresentation<GitsUninstallOutput>
+
+export type TaskTemplatePresentation =
+  CliPresentation<TaskTemplateCommandOutput>
+
+export interface TaskTemplatePresentationOptions {
+  readonly nextCommands?: readonly SuggestedCommand[]
+  readonly wide?: boolean
 }
 
 export interface RepoMirrorPresentationOptions {

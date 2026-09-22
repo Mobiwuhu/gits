@@ -9,8 +9,6 @@ import {
   RepositoryActionResult,
   RepositoryFlag,
   RepositoryState,
-  reportProgress,
-  initialRepositoryResult,
 } from '../../../contract/index'
 import type {
   ISwitchTaskService,
@@ -21,6 +19,8 @@ import type {
   RepositoryCommandResult,
   TaskRepository,
 } from '../../../contract/index'
+import { initialRepositoryResult } from '../../../service/repositoryResult'
+import { signalOptions } from '../../../util/index'
 import {
   checkoutDiffers,
   validateConfiguredCheckout,
@@ -29,6 +29,7 @@ import { gitCommandError, isGitCommandSuccessful } from './gitResult'
 import { loadTaskConfiguration } from './loadTaskConfiguration'
 import { preflightRemotes, remoteFailureFor } from './remotePreflight'
 import { repositoryTaskPresentation } from './taskPresentation'
+import { reportProgress } from './taskProgress'
 import {
   commandError,
   isConflictState,
@@ -169,7 +170,10 @@ export class SwitchTaskService implements ISwitchTaskService {
   ): Promise<readonly SwitchPlan[]> {
     return Promise.all(
       repositories.map(async (repository) => {
-        const initial = await this.git.inspect(repository, withSignal(signal))
+        const initial = await this.git.inspect(
+          repository,
+          signalOptions(signal)
+        )
         if (
           !canSwitch(initial) ||
           (initial.actual.branch === repository.branch &&
@@ -181,7 +185,7 @@ export class SwitchTaskService implements ISwitchTaskService {
         const localBranch = await this.git.hasRef(
           repository.absolutePath,
           `refs/heads/${repository.branch}`,
-          withSignal(signal)
+          signalOptions(signal)
         )
         const needsFetch =
           !localBranch.exists && localBranch.command.exitCode === 1
@@ -366,7 +370,10 @@ export class SwitchTaskService implements ISwitchTaskService {
       }
     }
 
-    const status = await this.git.inspect(repository, withSignal(input.signal))
+    const status = await this.git.inspect(
+      repository,
+      signalOptions(input.signal)
+    )
     if (checkoutDiffers(status)) {
       return withCommandError(
         status,
@@ -435,12 +442,6 @@ function updateProgress(
 ): void {
   task.update(phase)
   reportProgress(input.onProgress, { phase, repository: repository.name })
-}
-
-function withSignal(signal: AbortSignal | undefined): {
-  readonly signal?: AbortSignal
-} {
-  return signal ? { signal } : {}
 }
 
 function basenameTask(root: string): string {

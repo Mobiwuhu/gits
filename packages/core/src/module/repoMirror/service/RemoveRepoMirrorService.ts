@@ -28,12 +28,11 @@ import type {
   RepoMirrorDefinition,
   RepoMirrorView,
 } from '../../../contract/index'
+import { pathExists, signalOptions } from '../../../util/index'
 import {
   commandError,
   moveToTrash,
-  pathExists,
   settledViews,
-  signalOptions,
   validateJobs,
 } from './repoMirrorHelpers'
 

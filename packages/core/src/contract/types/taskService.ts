@@ -2,9 +2,11 @@ import type { RepoMirrorCommandOutput } from './repoMirror'
 import type { RepositoryProgressReporter } from './taskProgress'
 
 export interface InitializeTaskInput {
+  readonly dryRun: boolean
+  readonly fromPath?: string
   readonly root: string
-  readonly scanPath?: string
   readonly signal?: AbortSignal
+  readonly template?: string
 }
 
 export interface StatusTaskInput {

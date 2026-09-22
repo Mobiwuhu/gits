@@ -14,6 +14,7 @@ import type {
   RepoMirrorConfiguration,
   RepoMirrorDefinition,
 } from '../../../contract/index'
+import { hasErrorCode } from '../../../util/index'
 
 const defaultConfiguration: RepoMirrorConfiguration = {
   repoMirrors: [],
@@ -44,7 +45,7 @@ export class RepoMirrorStoreService implements IRepoMirrorStoreService {
     try {
       content = await readFile(this.paths.config, 'utf-8')
     } catch (error) {
-      if (hasCode(error, 'ENOENT')) {
+      if (hasErrorCode(error, 'ENOENT')) {
         return defaultConfiguration
       }
       const message = error instanceof Error ? error.message : String(error)
@@ -62,7 +63,7 @@ export class RepoMirrorStoreService implements IRepoMirrorStoreService {
       content = await readFile(this.paths.config, 'utf-8')
       parseRepoMirrorConfiguration(content, this.paths.config)
     } catch (error) {
-      if (!hasCode(error, 'ENOENT')) {
+      if (!hasErrorCode(error, 'ENOENT')) {
         throw error
       }
     }
@@ -296,13 +297,4 @@ function updateProperty(
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function hasCode(error: unknown, code: string): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === code
-  )
 }

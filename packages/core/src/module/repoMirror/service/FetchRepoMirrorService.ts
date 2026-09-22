@@ -21,12 +21,12 @@ import type {
   RepoMirrorDefinition,
   RepoMirrorView,
 } from '../../../contract/index'
+import { signalOptions } from '../../../util/index'
 import {
   commandError,
   commandMessage,
   operationMessage,
   settledViews,
-  signalOptions,
   validateJobs,
 } from './repoMirrorHelpers'
 

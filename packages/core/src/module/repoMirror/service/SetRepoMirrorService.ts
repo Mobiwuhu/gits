@@ -22,13 +22,12 @@ import type {
   RepoMirrorView,
   SetRepoMirrorsInput,
 } from '../../../contract/index'
+import { signalOptions, uniqueStrings } from '../../../util/index'
 import {
   asNonEmptyUrls,
   commandError,
   operationMessage,
   settledViews,
-  signalOptions,
-  uniqueStrings,
   validateJobs,
 } from './repoMirrorHelpers'
 import { resolveRepoMirrorUrl } from './repoMirrorIdentity'

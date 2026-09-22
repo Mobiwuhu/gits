@@ -25,13 +25,12 @@ import type {
   RepoMirrorDefinition,
   RepoMirrorView,
 } from '../../../contract/index'
+import { errorMessage, pathExists, signalOptions } from '../../../util/index'
 import {
   commandError,
   commandMessage,
   moveToTrash,
   operationMessage,
-  pathExists,
-  signalOptions,
 } from './repoMirrorHelpers'
 
 export class DoctorRepoMirrorService implements IDoctorRepoMirrorService {
@@ -209,8 +208,4 @@ export class DoctorRepoMirrorService implements IDoctorRepoMirrorService {
       await releaseMirror()
     }
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

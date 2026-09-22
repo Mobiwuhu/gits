@@ -25,6 +25,7 @@ import {
   resolveSystemdTimerEnablementDirectory,
   resolveSystemdUserUnitDirectory,
 } from '../../../service/index'
+import { hasErrorCode } from '../../../util/index'
 import { renderLaunchdPlist } from './launchdPlistRenderer'
 import { compileCalendarEntries } from './portableCron'
 import { renderSystemdUnits } from './systemdUnitRenderer'
@@ -591,7 +592,7 @@ async function readOptional(path: string): Promise<string | null> {
   try {
     return await readFile(path, 'utf-8')
   } catch (error) {
-    if (hasCode(error, 'ENOENT')) {
+    if (hasErrorCode(error, 'ENOENT')) {
       return null
     }
     throw error
@@ -655,13 +656,4 @@ function backendFor(
 function nonEmpty(value: string): string | null {
   const trimmed = value.trim()
   return trimmed.length === 0 ? null : trimmed
-}
-
-function hasCode(error: unknown, code: string): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === code
-  )
 }

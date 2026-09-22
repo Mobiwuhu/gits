@@ -3,14 +3,12 @@ import { Inject, Many } from '@wendellhu/redi'
 import { Cli, z } from 'incur'
 
 import {
+  cliGlobalsSchema,
   ICliOutputService,
   IRepoMirrorSubcommand,
+  repoMirrorCommandOutputSchema,
 } from '../../../contract/index'
-import type {
-  CliContext,
-  CliInstance,
-  ICliCommand,
-} from '../../../contract/index'
+import type { CliInstance, ICliCommand } from '../../../contract/index'
 
 export class RepoMirrorCommand implements ICliCommand {
   constructor(
@@ -25,14 +23,12 @@ export class RepoMirrorCommand implements ICliCommand {
     const repoMirrors = Cli.create('repo-mirrors', {
       args: z.object({ names: z.array(z.string()).default([]) }),
       description: 'List machine-local Git repository mirrors.',
+      globals: cliGlobalsSchema,
+      output: repoMirrorCommandOutputSchema,
       options: z.object({
         wide: z.boolean().default(false).describe('Show full mirror details'),
       }),
-      run: async (rawContext) => {
-        const context = rawContext as CliContext & {
-          readonly args: { readonly names: readonly string[] }
-          readonly options: { readonly wide: boolean }
-        }
+      run: async (context) => {
         return this.output.runRepoMirror(
           context,
           'repo-mirrors list',

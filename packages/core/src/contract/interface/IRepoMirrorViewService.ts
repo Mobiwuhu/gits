@@ -1,8 +1,8 @@
 import { createIdentifier } from '@wendellhu/redi'
 import type { IdentifierDecorator } from '@wendellhu/redi'
 
+import type { RepoMirrorAction } from '../constants/index'
 import type {
-  RepoMirrorAction,
   RepoMirrorDefinition,
   RepoMirrorView,
   RepoMirrorViewOverrides,

@@ -1,10 +1,10 @@
 import { createIdentifier } from '@wendellhu/redi'
 import type { IdentifierDecorator } from '@wendellhu/redi'
 
-import type { CommandOutput, InitializeTaskInput } from '../types/index'
+import type { InitializeTaskInput, InitializeTaskOutput } from '../types/index'
 
 export interface IInitializeTaskService {
-  execute(input: InitializeTaskInput): Promise<CommandOutput>
+  execute(input: InitializeTaskInput): Promise<InitializeTaskOutput>
 }
 
 export const IInitializeTaskService: IdentifierDecorator<IInitializeTaskService> =
