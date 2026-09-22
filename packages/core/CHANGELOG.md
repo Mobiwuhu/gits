@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.1.1...v0.2.0
+
+[compare changes](https://github.com/Mobiwuhu/gits/compare/v0.1.1...v0.2.0)
+
+### 🚀 Enhancements
+
+- Add reusable task templates ([b2ea0fd](https://github.com/Mobiwuhu/gits/commit/b2ea0fd))
+
+### ❤️ Contributors
+
+- Mobiwuhu ([@Mobiwuhu](https://github.com/Mobiwuhu))
+
 ## v0.0.0...v0.1.1
 
 [compare changes](https://github.com/Mobiwuhu/gits/compare/7316d786239233268df08c08460231fe4d6a970f...v0.1.1)
