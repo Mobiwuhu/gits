@@ -15,6 +15,11 @@ import { describe, it } from 'node:test'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 
+import { RepositoryFlag } from '@usegits/core'
+import type { CommandOutput } from '@usegits/core'
+
+import { formatCommandOutput } from './commandOutput'
+
 const executeFile = promisify(execFile)
 const repositoryRoot = resolve(
   dirname(new URL(import.meta.url).pathname),
@@ -34,26 +39,7 @@ interface CommandFailure extends Error {
   readonly stdout?: string | Buffer
 }
 
-interface JsonCommandOutput {
-  readonly command: string
-  readonly ok: boolean
-  readonly repos: readonly {
-    readonly actual: {
-      readonly ahead: number | null
-      readonly behind: number | null
-      readonly branch: string | null
-      readonly checkout: readonly string[] | null
-      readonly upstream: string | null
-    }
-    readonly error: { readonly code: string; readonly message: string } | null
-    readonly expected: {
-      readonly checkout: readonly string[] | null
-    }
-    readonly flags: readonly string[]
-    readonly name: string
-    readonly result: string
-    readonly state: string | null
-  }[]
+interface JsonCommandOutput extends CommandOutput {
   readonly template?: {
     readonly kind: string
     readonly name: string | null
@@ -193,6 +179,36 @@ void describe('gits CLI', () => {
       assert.equal(localOnly.code, 0)
       assert.equal(parseOutput(localOnly).repos[0]?.state, 'local-only')
 
+      const prototype = resolve(task, 'repos/prototype')
+      await mkdir(prototype)
+      await git(['init', '-b', 'main'], prototype)
+      await writeFile(resolve(prototype, 'scratch.txt'), 'local work\n')
+
+      const discoveredStatus = await gits(['-C', task, 'status', '--json'])
+      assert.equal(discoveredStatus.code, 0)
+      const discoveredOutput = parseOutput(discoveredStatus)
+      assert.equal(discoveredOutput.repos.length, 2)
+      const discovered = discoveredOutput.repos.find(
+        (repository) => repository.name === 'prototype'
+      )
+      assert.equal(discovered?.path, 'repos/prototype')
+      assert.equal(discovered?.expected, null)
+      assert.equal(discovered?.actual.branch, 'main')
+      assert.equal(discovered?.actual.checkout, null)
+      assert.equal(discovered?.actual.upstream, null)
+      assert.equal(discovered?.actual.url, null)
+      assert.equal(discovered?.flags.includes(RepositoryFlag.Dirty), true)
+      assert.equal(discovered?.state, 'local-only')
+
+      const humanStatus = formatCommandOutput({
+        exitCode: 0,
+        output: discoveredOutput,
+      })
+      assert.match(
+        humanStatus,
+        /prototype\s+-\s+main\s+dirty\s+all\s+-\s+local-only(?:\n|$)/u
+      )
+
       const pushed = await gits(['-C', task, 'push', 'api', '--json'])
       assert.equal(pushed.code, 0)
       assert.equal(parseOutput(pushed).repos[0]?.state, 'synced-local')
@@ -264,7 +280,7 @@ void describe('gits CLI', () => {
       const installed = await gits(['-C', task, 'install', '--json'])
       assert.equal(installed.code, 0, installed.stderr)
       const [installedRepository] = parseOutput(installed).repos
-      assert.deepEqual(installedRepository?.expected.checkout, ['knowledge'])
+      assert.deepEqual(installedRepository?.expected?.checkout, ['knowledge'])
       assert.deepEqual(installedRepository?.actual.checkout, ['knowledge'])
       await access(resolve(repository, 'knowledge/guide.md'))
       await assert.rejects(async () =>
@@ -283,7 +299,9 @@ void describe('gits CLI', () => {
       const drifted = await gits(['-C', task, 'status', '--json'])
       assert.equal(drifted.code, 1)
       assert.equal(
-        parseOutput(drifted).repos[0]?.flags.includes('checkout-different'),
+        parseOutput(drifted).repos[0]?.flags.includes(
+          RepositoryFlag.CheckoutDifferent
+        ),
         true
       )
 

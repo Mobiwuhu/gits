@@ -11,8 +11,8 @@ import type {
   GitPushOptions,
   GitReferenceLookup,
   GitStashResult,
+  RepositoryLocation,
   RepositoryCommandResult,
-  TaskRepository,
 } from '../types/index'
 
 export interface IGitService {
@@ -42,7 +42,7 @@ export interface IGitService {
     options?: GitOperationOptions
   ): Promise<GitReferenceLookup>
   inspect(
-    repository: TaskRepository,
+    repository: RepositoryLocation,
     options?: GitOperationOptions
   ): Promise<RepositoryCommandResult>
   prepareBranch(

@@ -23,6 +23,8 @@ import type {
   GitStashResult,
   ActualRepositoryState,
   CommandError,
+  ExpectedRepositoryState,
+  RepositoryLocation,
   RepositoryCommandResult,
   TaskRepository,
   IGitService,
@@ -147,9 +149,10 @@ export class GitService implements IGitService {
   }
 
   async inspect(
-    repository: TaskRepository,
+    repository: RepositoryLocation,
     options: GitOperationOptions = {}
   ): Promise<RepositoryCommandResult> {
+    const configured = isTaskRepository(repository) ? repository : null
     const pathState = await inspectPath(repository.absolutePath)
     if (pathState === PathState.Missing) {
       return repositoryResult(repository, RepositoryState.Missing)
@@ -205,15 +208,23 @@ export class GitService implements IGitService {
         url: actualUrl,
       }
       const comparison =
-        actualUrl === null ? null : compareGitUrls(repository.url, actualUrl)
-      const flags = repositoryFlags(
-        checkout.isCone === false ||
-          !sameCheckout(repository.checkout, checkout.paths),
-        facts.dirty,
-        comparison?.isTransportDifferent ?? false
-      )
+        configured === null || actualUrl === null
+          ? null
+          : compareGitUrls(configured.url, actualUrl)
+      const flags =
+        configured === null
+          ? repositoryFlags(false, facts.dirty, false)
+          : repositoryFlags(
+              checkout.isCone === false ||
+                !sameCheckout(configured.checkout, checkout.paths),
+              facts.dirty,
+              comparison?.isTransportDifferent ?? false
+            )
 
-      if (comparison === null || !comparison.isSameRepository) {
+      if (
+        configured !== null &&
+        (comparison === null || !comparison.isSameRepository)
+      ) {
         return repositoryResult(
           repository,
           RepositoryState.WrongRepo,
@@ -229,7 +240,7 @@ export class GitService implements IGitService {
           flags
         )
       }
-      if (facts.branch !== repository.branch) {
+      if (configured !== null && facts.branch !== configured.branch) {
         return repositoryResult(
           repository,
           RepositoryState.WrongBranch,
@@ -280,7 +291,10 @@ export class GitService implements IGitService {
           flags
         )
       }
-      if (facts.upstream !== `origin/${repository.branch}`) {
+      if (
+        configured !== null &&
+        facts.upstream !== `origin/${configured.branch}`
+      ) {
         return repositoryResult(
           repository,
           RepositoryState.WrongUpstream,
@@ -749,7 +763,7 @@ function sameCheckout(
 }
 
 function repositoryResult(
-  repository: TaskRepository,
+  repository: RepositoryLocation,
   state: RepositoryState,
   actual: ActualRepositoryState = emptyActualState(),
   flags: readonly RepositoryFlag[] = []
@@ -757,7 +771,7 @@ function repositoryResult(
   return {
     actual,
     error: null,
-    expected: expectedState(repository),
+    expected: repositoryExpectedState(repository),
     flags,
     name: repository.name,
     path: repository.path,
@@ -767,7 +781,7 @@ function repositoryResult(
 }
 
 function repositoryFailure(
-  repository: TaskRepository,
+  repository: RepositoryLocation,
   error: CommandError,
   actual: ActualRepositoryState = emptyActualState(),
   flags: readonly RepositoryFlag[] = []
@@ -775,13 +789,25 @@ function repositoryFailure(
   return {
     actual,
     error,
-    expected: expectedState(repository),
+    expected: repositoryExpectedState(repository),
     flags,
     name: repository.name,
     path: repository.path,
     result: RepositoryActionResult.Failed,
     state: null,
   }
+}
+
+function repositoryExpectedState(
+  repository: RepositoryLocation
+): ExpectedRepositoryState | null {
+  return isTaskRepository(repository) ? expectedState(repository) : null
+}
+
+function isTaskRepository(
+  repository: RepositoryLocation
+): repository is TaskRepository {
+  return 'url' in repository
 }
 
 function stateFromAheadBehind(

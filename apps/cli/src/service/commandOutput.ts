@@ -13,7 +13,9 @@ export function formatCommandOutput(presentation: CommandPresentation): string {
     return output.ok ? 'No repositories configured.' : 'Command failed.'
   }
 
-  const rows = output.repos.map(toRow)
+  const rows = output.repos.map((repository) =>
+    toRow(repository, output.command === 'status')
+  )
   const headers = [
     'REPO',
     'EXPECTED',
@@ -53,15 +55,21 @@ export function formatCommandOutput(presentation: CommandPresentation): string {
   ].join('\n')
 }
 
-function toRow(repository: RepositoryCommandResult): string[] {
+function toRow(
+  repository: RepositoryCommandResult,
+  conciseState: boolean
+): string[] {
   const dirty = repository.flags.includes(RepositoryFlag.Dirty)
     ? 'dirty'
     : 'clean'
-  const state = [formatState(repository), ...repository.flags].join(', ')
+  const stateFlags = conciseState
+    ? repository.flags.filter((flag) => flag === RepositoryFlag.UrlDifferent)
+    : repository.flags
+  const state = [formatState(repository), ...stateFlags].join(', ')
 
   return [
     repository.name,
-    repository.expected.branch,
+    repository.expected?.branch ?? '-',
     repository.actual.branch ?? '-',
     dirty,
     formatCheckout(repository),
@@ -79,8 +87,12 @@ function formatCheckout(repository: RepositoryCommandResult): string {
     return '-'
   }
 
-  const expected = checkoutLabel(repository.expected.checkout)
   const actual = checkoutLabel(repository.actual.checkout)
+  if (repository.expected === null) {
+    return actual
+  }
+
+  const expected = checkoutLabel(repository.expected.checkout)
   return repository.flags.includes(RepositoryFlag.CheckoutDifferent)
     ? `${actual} != ${expected}`
     : actual

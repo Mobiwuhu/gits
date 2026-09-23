@@ -28,7 +28,7 @@ export interface CommandError {
 export interface RepositoryCommandResult {
   readonly actual: ActualRepositoryState
   readonly error: CommandError | null
-  readonly expected: ExpectedRepositoryState
+  readonly expected: ExpectedRepositoryState | null
   readonly flags: readonly RepositoryFlag[]
   readonly name: string
   readonly mirror?: Readonly<{

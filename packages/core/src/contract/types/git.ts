@@ -4,7 +4,7 @@ import type {
   GitStdioMode,
 } from '../constants/git'
 import type { RepositoryCommandResult } from './commandResult'
-import type { TaskRepository } from './task'
+import type { RepositoryLocation } from './task'
 
 export type GitOutputChunk = Readonly<{
   stream: GitOutputStream
@@ -79,7 +79,7 @@ export type GitCommandOptions = Readonly<{
 
 export type GitInspectInput = Readonly<{
   options?: GitOperationOptions
-  repository: TaskRepository
+  repository: RepositoryLocation
 }>
 
 export type GitInspectOutput = RepositoryCommandResult

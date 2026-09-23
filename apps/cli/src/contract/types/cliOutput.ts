@@ -76,12 +76,14 @@ const repositoryCommandResultSchema = z.object({
     url: z.string().nullable(),
   }),
   error: commandErrorSchema.nullable(),
-  expected: z.object({
-    branch: z.string(),
-    checkout: z.array(z.string()).nullable(),
-    upstream: z.string(),
-    url: z.string(),
-  }),
+  expected: z
+    .object({
+      branch: z.string(),
+      checkout: z.array(z.string()).nullable(),
+      upstream: z.string(),
+      url: z.string(),
+    })
+    .nullable(),
   flags: z.array(z.enum(RepositoryFlag)),
   name: z.string(),
   mirror: z
